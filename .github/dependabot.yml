@@ -19,6 +19,12 @@ updates:
       npm:
         patterns: ["*"]
         update-types: [minor, patch]
+    ignore:
+      # ESLint 10 waits for eslint-plugin-react: its peer range ends at ESLint 9
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: pip
     directories: [/services/asr, /services/embeddings, /services/music, /services/tts]

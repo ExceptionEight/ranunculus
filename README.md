@@ -1,13 +1,15 @@
 <h1 align="center">
-  <img src=".github/assets/logo.svg" alt="" width="56" align="center">
-  Ranunculus
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/ExceptionEight/ranunculus/raw/main/.github/assets/wordmark-dark.svg">
+    <img src="https://github.com/ExceptionEight/ranunculus/raw/main/.github/assets/wordmark-light.svg" alt="Ranunculus" height="56">
+  </picture>
 </h1>
 
 <h3 align="center">Замена бэкенда Яндекс Станции 2 для вашего хоумлаба</h3>
 
 <p align="center">
-  <a href="https://github.com/ExceptionEight/ranunculus/actions/workflows/ci.yml"><img src="https://github.com/ExceptionEight/ranunculus/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/ExceptionEight/ranunculus/releases/latest"><img src="https://img.shields.io/github/v/release/ExceptionEight/ranunculus" alt="Релиз"></a>
+  <a href="https://github.com/ExceptionEight/ranunculus/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ExceptionEight/ranunculus/ci.yml?branch=main&label=CI" alt="CI"></a>
+  <a href="https://github.com/ExceptionEight/ranunculus/releases/latest"><img src="https://img.shields.io/github/v/release/ExceptionEight/ranunculus?label=release&color=blue" alt="Релиз"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="Лицензия MIT"></a>
 </p>
 
