@@ -1,0 +1,21 @@
+/* Ranunculus: «Малиновое варенье». Glass cards over a raspberry-and-blue backdrop, Rubik, two tinted hero tiles
+   (raspberry: what is playing or ringing; blue: the volume). Everything else that is tinted is raspberry, one colour,
+   never alternating with blue; in the chat the assistant's actions are blue, beside the raspberry bubbles. Light and
+   dark: the tokens (styles/tokens.css), chosen by the system or by Settings → Оформление (data-theme on <html>).
+   The parts follow in the order they cascade. */
+
+@import './styles/tokens.css';
+@import './styles/base.css';
+@import './styles/frame.css';
+@import './styles/heads.css';
+@import './styles/cards.css';
+@import './styles/hero.css';
+@import './styles/controls.css';
+@import './styles/flower.css';
+@import './styles/home.css';
+@import './styles/station.css';
+@import './styles/analytics.css';
+@import './styles/settings.css';
+@import './styles/dialogs.css';
+@import './styles/signin.css';
+@import './styles/motion.css';

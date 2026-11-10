@@ -1,0 +1,7 @@
+# cargo audit (.github/workflows/audit.yml): advisories looked at and accepted, each with the reason.
+[advisories]
+ignore = [
+    # rsa 0.9, under openidconnect: the Marvin attack recovers a key from the timing of RSA decryption. Here RSA only
+    # verifies an OIDC provider's ID token signatures with its public key; 0.9 has no fixed release.
+    "RUSTSEC-2023-0071",
+]

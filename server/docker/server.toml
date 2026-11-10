@@ -1,0 +1,10 @@
+# The server's settings inside its image: where compose.yaml's services are. Everything else is the defaults
+# (server/src/config.rs). To change something, mount a file of your own over /app/server.toml.
+[services]
+asr = "http://asr:8000"
+tts = "http://tts:8000"
+pages = "http://pages:8000"
+search = "http://search:8080/search"
+music = "http://music:8000"
+# answers only with the «memory» profile on; without it the memory is searched by words
+embeddings = "http://embeddings:8000"

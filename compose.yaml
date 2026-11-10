@@ -1,0 +1,79 @@
+# Ranunculus on one machine: the server with its web UI and the services beside it.
+#
+#   docker compose up -d                     voice, music, the web search and page reading
+#   docker compose --profile memory up -d    also memory search by meaning (about 3 GB of RAM more)
+#
+# The images are the released ones (amd64 and arm64); with --build they are built from this checkout instead.
+# Then open https://<this machine>:52702 (the certificate is the server's own: the browser asks once), make the first
+# user and add a model for the answers in Настройки → Модели. The stations connect to port 52700: station/install.sh.
+# Recognition, the voice and the embeddings download their models at the first start (0.4, 0.15 and 2 GB).
+name: ranunculus
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: ghcr.io/exceptioneight/ranunculus-server:0.0.1
+    restart: unless-stopped
+    ports:
+      - "52700:52700"
+      - "52702:52702"
+    # a model served by this machine itself (Ollama, llama.cpp) is reached from the server by this name
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - data:/app/data
+
+  # speech recognition: GigaAM on the CPU
+  asr:
+    build: services/asr
+    image: ghcr.io/exceptioneight/ranunculus-asr:0.0.1
+    restart: unless-stopped
+    volumes:
+      - asr-models:/models
+
+  # the voice: Silero on the CPU. Its Russian voices are licensed for non-commercial use (CC BY-NC-SA 4.0); any other
+  # synthesizer with the OpenAI speech API can be connected in the web UI instead, and this one removed
+  tts:
+    build: services/tts
+    image: ghcr.io/exceptioneight/ranunculus-tts:0.0.1
+    restart: unless-stopped
+    volumes:
+      - tts-models:/models
+
+  # music from YouTube Music (an unofficial client: yt-dlp)
+  music:
+    build: services/music
+    image: ghcr.io/exceptioneight/ranunculus-music:0.0.1
+    restart: unless-stopped
+
+  # web pages as text, for answers that need more than a search result
+  pages:
+    build: services/pages
+    image: ghcr.io/exceptioneight/ranunculus-pages:0.0.1
+    restart: unless-stopped
+
+  # the web search: SearXNG, reached by the server only. Its secret key signs nothing that outlives a restart, so a
+  # new one is drawn at every start
+  search:
+    image: searxng/searxng:2026.11.9-57ff753ad
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c", "export SEARXNG_SECRET=$$(head -c 24 /dev/urandom | base64) && exec /usr/local/searxng/entrypoint.sh"]
+    volumes:
+      - ./services/search/settings.yml:/etc/searxng/settings.yml:ro
+
+  # memory search by meaning: e5 embeddings on the CPU
+  embeddings:
+    profiles: ["memory"]
+    build: services/embeddings
+    image: ghcr.io/exceptioneight/ranunculus-embeddings:0.0.1
+    restart: unless-stopped
+    volumes:
+      - embeddings-models:/models
+
+volumes:
+  data:
+  asr-models:
+  tts-models:
+  embeddings-models:

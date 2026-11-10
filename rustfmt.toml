@@ -1,0 +1,3 @@
+# One layout for every editor: lines up to 120, and what fits on one line stays on it.
+max_width = 120
+use_small_heuristics = "Max"

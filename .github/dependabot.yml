@@ -1,0 +1,49 @@
+# Weekly pull requests that keep the dependencies current: minor and patch updates come grouped, one pull request per
+# ecosystem; a new major version comes on its own.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: pip
+    directories: [/services/asr, /services/embeddings, /services/music, /services/tts]
+    schedule:
+      interval: weekly
+    groups:
+      pip:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # the Rust image goes with rust-toolchain.toml: tools/version.sh fails until both say the same
+  - package-ecosystem: docker
+    directories: [/server, /services/asr, /services/embeddings, /services/music, /services/pages, /services/tts]
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

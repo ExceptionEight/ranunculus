@@ -1,0 +1,230 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "play_music",
+      "description": "Включить музыку на колонке: трек, исполнителя, альбом, жанр или настроение.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Поисковый запрос: исполнитель и трек, или жанр/настроение"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "player_control",
+      "description": "Управление воспроизведением: pause — пауза, resume — продолжить, next — следующий трек, previous — предыдущий трек, restart — текущий трек с начала, stop — выключить музыку, repeat — поставить текущий трек на повтор, repeat_off — убрать повтор, seek — перемотать (seconds — на сколько секунд, назад со знаком минус; или position — на какую секунду трека встать).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "pause",
+              "resume",
+              "next",
+              "previous",
+              "restart",
+              "stop",
+              "repeat",
+              "repeat_off",
+              "seek"
+            ]
+          },
+          "seconds": {
+            "type": "integer",
+            "description": "seek: на сколько секунд перемотать; назад — отрицательное число"
+          },
+          "position": {
+            "type": "integer",
+            "description": "seek: на какую секунду от начала трека встать"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "set_volume",
+      "description": "Громкость колонки: без аргументов — узнать текущий уровень (не угадывай его, спрашивай инструмент); level — точный уровень от 0 до 10, change — изменить на столько шагов (+ громче, - тише).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "change": {
+            "type": "integer",
+            "minimum": -10,
+            "maximum": 10
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "set_timer",
+      "description": "Поставить таймер.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "seconds": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "seconds"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_weather",
+      "description": "Погода: сейчас и прогноз на сегодня, завтра или послезавтра. Без города — дома.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "day": {
+            "type": "string",
+            "enum": [
+              "today",
+              "tomorrow",
+              "after_tomorrow"
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "web_search",
+      "description": "Поиск в интернете: свежие события, курсы, результаты матчей, цены, даты выхода, факты, которых ты не знаешь точно.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "короткий поисковый запрос, как в поисковике"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "read_page",
+      "description": "Открыть страницу из результатов поиска и получить её текст целиком (текст песни, статья, рецепт, инструкция). Длинная страница приходит частями: part=2, 3… — следующие куски.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "url из результатов web_search"
+          },
+          "part": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "recall",
+      "description": "Вспомнить прошлые разговоры с хозяином — всё, что было раньше реплик выше: поиск по смыслу, можно в пределах дат. Для «помнишь…», «что я говорил про…», «когда я…» и личных подробностей, которых нет выше и в заметках. Если вопрос про время («вчера», «позавчера утром», «на прошлой неделе») — обязательно укажи since и until: тогда вернутся все разговоры тех дней по порядку.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "о чём вспомнить, своими словами"
+          },
+          "since": {
+            "type": "string",
+            "description": "YYYY-MM-DD: не раньше этого дня"
+          },
+          "until": {
+            "type": "string",
+            "description": "YYYY-MM-DD: не позже этого дня"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "calculate",
+      "description": "Точно вычислить арифметическое выражение: + - * / ** и скобки, проценты как 0.15*2400.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "expression": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expression"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "date_calc",
+      "description": "Даты: какая дата и день недели будут через days_from_today дней (можно отрицательное), или сколько дней осталось до даты date (YYYY-MM-DD). Сегодняшняя дата известна инструменту.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "days_from_today": {
+            "type": "integer"
+          },
+          "date": {
+            "type": "string",
+            "description": "YYYY-MM-DD"
+          }
+        }
+      }
+    }
+  }
+]

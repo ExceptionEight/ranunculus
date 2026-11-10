@@ -1,0 +1,159 @@
+/* Dialogs: a sheet from the bottom on a phone */
+
+dialog.sheet {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--sheet);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+
+dialog.sheet[open] {
+  display: flex;
+  flex-direction: column;
+  animation: rise 0.22s ease-out;
+}
+
+dialog.sheet::backdrop {
+  background: var(--scrim);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 4px 24px;
+}
+
+.sheet-head h2 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* a «?» and its note (ui.jsx Hint): the note's top padding bridges the gap, so a mouse can move onto it */
+.hint {
+  position: relative;
+  display: inline-flex;
+}
+
+.hint-pop {
+  position: absolute;
+  z-index: 25;
+  top: 100%;
+  right: 0;
+  width: min(300px, calc(100vw - 32px));
+  padding-top: 8px;
+  animation: hint-in 0.15s ease-out;
+}
+
+.hint-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--line-2);
+  background: var(--sheet);
+  box-shadow: var(--shadow-pop);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.hint-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+@keyframes hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.help-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.help-list > div {
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+
+.help-list > div:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.help-list > div:last-child {
+  padding-bottom: 0;
+}
+
+.help-list dt {
+  font-weight: 600;
+}
+
+.help-list dd {
+  margin: 2px 0 0;
+  color: var(--ink-2);
+}
+
+.sheet-body {
+  padding: 16px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sheet-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px 22px;
+  border-top: 1px solid var(--line);
+}
+
+.sheet-foot .spacer {
+  flex: 1;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  dialog.sheet {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - 24px);
+    margin: auto 0 0;
+    border-radius: 28px 28px 0 0;
+  }
+
+  .sheet-foot {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+
+  .sheet-foot .btn {
+    flex: 1 1 auto;
+  }
+
+  .sheet-foot .spacer {
+    display: none;
+  }
+}

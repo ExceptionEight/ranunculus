@@ -1,0 +1,7 @@
+# Python in services/ and tools/: one layout, and the checks that find real slips.
+line-length = 120
+# the oldest Python the code is kept working on (the images run 3.14): no syntax newer than this
+target-version = "py312"
+
+[format]
+quote-style = "single"

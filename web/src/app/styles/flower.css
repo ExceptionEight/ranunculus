@@ -1,0 +1,47 @@
+/* The station's glyph: the flower */
+
+/* The logo's four layers in its own colours, light or dark, on the card itself (no tile under it); Flower.jsx moves
+   them (it comes apart into dots and closes again). A station that is not there: one grey, as the logo is drawn in
+   one colour. */
+.glyph {
+  display: block;
+  flex: none;
+}
+
+.glyph > g {
+  transition:
+    fill 0.3s ease,
+    fill-opacity 0.3s ease;
+}
+
+.glyph > g:nth-child(1) {
+  fill: #ff4f8b;
+}
+
+.glyph > g:nth-child(2) {
+  fill: #e0306f;
+}
+
+.glyph > g:nth-child(3) {
+  fill: #c2185b;
+}
+
+.glyph > g:nth-child(4) {
+  fill: #74143b;
+}
+
+.glyph.offline > g {
+  fill: var(--ink-3);
+}
+
+.glyph.offline > g:nth-child(1) {
+  fill-opacity: 0.3;
+}
+
+.glyph.offline > g:nth-child(2) {
+  fill-opacity: 0.45;
+}
+
+.glyph.offline > g:nth-child(3) {
+  fill-opacity: 0.65;
+}

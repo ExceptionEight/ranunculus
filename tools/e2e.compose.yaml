@@ -1,0 +1,6 @@
+# For tools/e2e.py: the voice service reachable from the machine the test runs on (it says the command).
+#   docker compose -f compose.yaml -f tools/e2e.compose.yaml up -d
+services:
+  tts:
+    ports:
+      - "127.0.0.1:47711:8000"

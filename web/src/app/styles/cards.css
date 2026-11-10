@@ -1,0 +1,174 @@
+/* Cards and layout */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+}
+
+.row > * {
+  min-width: 0;
+}
+
+.row.top {
+  align-items: flex-start;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.grow-2 {
+  flex: 2 1 520px;
+}
+
+.grow-1 {
+  flex: 1 1 280px;
+}
+
+.card {
+  position: relative;
+  min-width: 0;
+  padding: 24px;
+  border-radius: var(--r-card);
+  background: var(--glass);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card.flat {
+  gap: 0;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
+}
+
+.card h2,
+.card h3,
+.section-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.section-title {
+  padding: 8px 4px 0;
+}
+
+.card .about {
+  color: var(--ink-2);
+  font-size: 14px;
+  margin-top: -8px;
+}
+
+@media (max-width: 600px) {
+  :root {
+    --gap: 16px;
+    --r-card: 24px;
+  }
+
+  .card {
+    padding: 20px;
+  }
+}
+
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--gap);
+}
+
+/* rows inside a card: what it is on the left, its control on the right (the reference's «Режимы») */
+.rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.r {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.rows > .r:first-child,
+.card.flat > .r:first-child,
+.card-head + .rows > .r:first-child {
+  border-top: 0;
+}
+
+.r-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.r-text b {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.r-text span,
+.r-text small {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.r-ctl {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.r-ctl .field {
+  width: 300px;
+  max-width: 100%;
+}
+
+.r.wide {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.r.wide .r-ctl {
+  justify-content: flex-start;
+}
+
+@media (max-width: 640px) {
+  .r.stack-m {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .r.stack-m .r-ctl {
+    justify-content: flex-start;
+  }
+
+  .r.stack-m .r-ctl .field {
+    width: 100%;
+  }
+}
+
+.r-full {
+  flex-basis: 100%;
+}

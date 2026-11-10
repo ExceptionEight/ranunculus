@@ -1,0 +1,135 @@
+/* Home: stations, what is set to ring */
+
+.stations {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--gap);
+}
+
+.station {
+  padding: 20px;
+  gap: 18px;
+}
+
+.station-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: -6px;
+  padding: 6px;
+  border-radius: 18px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.station-link:hover {
+  color: var(--ink);
+  background: var(--fill);
+}
+
+.station-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.station-name b {
+  font-size: 17px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.station-name span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-2);
+  min-width: 0;
+}
+
+.station-name span > em {
+  font-style: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.station-name + svg {
+  color: var(--ink-3);
+  flex: none;
+}
+
+.station .slide {
+  gap: 12px;
+}
+
+.station .slide svg {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.station.off {
+  opacity: 0.75;
+}
+
+/* the agenda: timers going and alarms on */
+.agenda {
+  display: flex;
+  flex-direction: column;
+}
+
+.agenda-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.agenda-item:first-child {
+  border-top: 0;
+}
+
+.agenda-item .when {
+  flex: none;
+  min-width: 4.4ch;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.agenda-item .what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.agenda-item .what b {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agenda-item .what span {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.agenda-item .what a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.agenda-item .what a:hover {
+  color: var(--rasp-ink);
+}

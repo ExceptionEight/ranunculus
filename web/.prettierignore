@@ -1,0 +1,4 @@
+dist/
+package-lock.json
+# the flower's shapes: data, one long line per path
+src/shared/flower-shapes.js

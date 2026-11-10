@@ -1,0 +1,4 @@
+# The Rust the images are built with (server/Dockerfile): the same here and in CI.
+[toolchain]
+channel = "1.99.1"
+components = ["clippy", "rustfmt"]

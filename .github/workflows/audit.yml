@@ -1,0 +1,37 @@
+# Known vulnerabilities in the dependencies: on every push and pull request, and every Monday for advisories that
+# appear later about what is already here. Accepted ones are listed, with the reason, in .cargo/audit.toml.
+name: Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: Rust crates (RustSec)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - run: cargo audit
+
+  web:
+    name: Web UI packages (npm)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: npm audit --audit-level=high

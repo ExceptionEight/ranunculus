@@ -1,0 +1,458 @@
+/* Settings */
+
+.settings {
+  display: grid;
+  gap: var(--gap);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .settings {
+    grid-template-columns: 290px minmax(0, 1fr);
+  }
+
+  .settings .set-nav {
+    position: sticky;
+    top: 32px;
+  }
+}
+
+.set-nav {
+  padding: 10px;
+  gap: 2px;
+}
+
+.set-group {
+  padding: 14px 12px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.set-group:first-child {
+  padding-top: 6px;
+}
+
+.set-nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 10px;
+  border-radius: 16px;
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.set-nav a:hover {
+  background: var(--fill);
+  color: var(--ink);
+}
+
+.set-nav a.active {
+  background: var(--glass-2);
+  box-shadow: var(--shadow-sm);
+}
+
+.set-nav a > .label-text {
+  flex: 1;
+}
+
+.set-nav a > svg:last-child {
+  color: var(--ink-3);
+}
+
+.set-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-width: 0;
+}
+
+.set-pane h2.pane-title {
+  font-size: clamp(26px, 3.4vw, 32px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+@media (min-width: 900px) {
+  .set-nav a > svg:last-child {
+    display: none;
+  }
+
+  .set-pane .back {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .settings-page.has-pane > .head,
+  .settings-page.has-pane .set-nav {
+    display: none;
+  }
+
+  .settings-page:not(.has-pane) .set-pane {
+    display: none;
+  }
+}
+
+.provs {
+  display: flex;
+  flex-direction: column;
+}
+
+.prov {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.prov:first-child {
+  border-top: 0;
+}
+
+.prov .r-text b {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.prov .r-text span {
+  overflow-wrap: anywhere;
+}
+
+.prov-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prov-note {
+  flex-basis: 100%;
+  font-size: 14px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--fill);
+}
+
+.prov-note.err {
+  background: var(--bad-soft);
+}
+
+.models-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.models-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--field);
+}
+
+.models-list li button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.models-list li button:hover {
+  background: var(--fill);
+}
+
+.models-list li button[aria-selected='true'] {
+  background: var(--rasp-wash);
+}
+
+.models-list .mid {
+  font-weight: 600;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.models-list .mmeta {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.sounds {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sound {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.sound:first-child {
+  border-top: 0;
+}
+
+.sound .r-text {
+  min-width: 140px;
+}
+
+.sound .bad {
+  color: var(--bad);
+}
+
+.sound form {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.sound form .field {
+  flex: 1 1 180px;
+}
+
+.confirm {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--bad-soft);
+  font-size: 14px;
+}
+
+.confirm > span {
+  flex: 1 1 200px;
+}
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 20px;
+  border-radius: 22px;
+  border: 2px dashed var(--line-2);
+  text-align: center;
+  color: var(--ink-2);
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.drop.over {
+  border-color: var(--rasp);
+  background: var(--rasp-wash);
+}
+
+.drop p {
+  max-width: 440px;
+  font-size: 14px;
+}
+
+.ups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.ups li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--glass-2);
+  font-size: 14px;
+}
+
+.ups .nm {
+  flex: 1 1 160px;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ups progress {
+  flex: 1 1 120px;
+  height: 6px;
+  accent-color: var(--rasp);
+}
+
+.ups .bad {
+  color: var(--bad);
+}
+
+.themes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 520px;
+}
+
+.theme-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* a theme's tiny screen, in that theme's own colours whatever the page is in now; the system's: light | dark */
+.t-prev {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px var(--line-2),
+    var(--shadow-sm);
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.theme-opt:hover .t-prev {
+  transform: translateY(-2px);
+}
+
+.theme-opt[aria-pressed='true'] .t-prev {
+  outline: 2.5px solid var(--rasp);
+  outline-offset: 3px;
+}
+
+.t-screen {
+  position: absolute;
+  inset: 0;
+}
+
+.t-prev .t-screen + .t-screen {
+  clip-path: inset(0 0 0 50%);
+}
+
+.t-light {
+  --t-ink: rgba(42, 20, 32, 0.16);
+  background:
+    radial-gradient(circle at 0% 0%, #ffc2d1, rgba(255, 194, 209, 0) 60%),
+    radial-gradient(circle at 100% 100%, #a9bbff, rgba(169, 187, 255, 0) 62%), #fbf0f3;
+}
+
+.t-dark {
+  --t-ink: rgba(247, 234, 240, 0.22);
+  background:
+    radial-gradient(circle at 0% 0%, #5a1030, rgba(90, 16, 48, 0) 60%),
+    radial-gradient(circle at 100% 100%, #1d3a99, rgba(29, 58, 153, 0) 62%), #12090e;
+}
+
+.t-hero {
+  position: absolute;
+  inset: 13% 12% 50% 12%;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #ff4f8b, #c2185b);
+}
+
+.t-dark .t-hero {
+  background: linear-gradient(135deg, #e0306f, #8c1242);
+}
+
+.t-card {
+  position: absolute;
+  inset: 58% 12% 12% 12%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 9%;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.t-dark .t-card {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.t-card b {
+  display: block;
+  height: 3px;
+  width: 64%;
+  border-radius: 2px;
+  background: var(--t-ink);
+}
+
+.t-card b + b {
+  width: 40%;
+}
+
+.t-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 15px;
+}
+
+.theme-opt[aria-pressed='true'] .t-name {
+  color: var(--ink);
+}
+
+/* the chosen one's check, in the screen's corner */
+.t-mark {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--rasp);
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.92);
+}
+
+.counter {
+  font-size: 13px;
+  color: var(--ink-3);
+  margin-left: auto;
+}

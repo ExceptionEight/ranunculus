@@ -1,0 +1,13 @@
+[package]
+name = "ranunculus-vad"
+description = "Silero VAD v6 (16 kHz) in plain Rust from its safetensors weights"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+serde_json.workspace = true

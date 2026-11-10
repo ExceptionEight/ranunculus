@@ -1,0 +1,70 @@
+/* Signing in */
+
+.login {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.login-card {
+  width: min(420px, 100%);
+  padding: 32px 28px;
+  background: var(--glass-2);
+  gap: 18px;
+}
+
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.login-brand img {
+  width: 56px;
+  height: 56px;
+}
+
+.login-brand h1 {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.login-brand p {
+  margin-top: 6px;
+  color: var(--ink-2);
+}
+
+.or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.or::before,
+.or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line-2);
+}
+
+.notice {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--bad-soft);
+  color: var(--bad);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.notice.info {
+  background: var(--rasp-wash);
+  color: var(--ink);
+}

@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = ["server", "station", "crates/proto", "crates/vad"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+publish = false
+
+# index loops read as the formulas they are (filters, mixes); a long type said once is clearer than a name for it
+[workspace.lints.clippy]
+needless_range_loop = "allow"
+type_complexity = "allow"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"

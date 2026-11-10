@@ -1,0 +1,28 @@
+/target
+__pycache__/
+.venv/
+node_modules/
+/web/dist/
+/.claude/
+
+# what a running server keeps (config.rs `data`) and a local config: secrets, databases, recordings
+/data/
+/server.toml
+station.toml
+*.env
+.env
+*.key
+*.pem
+*.crt
+*.db
+*.db-wal
+*.db-shm
+
+# audio and model files do not belong here, except the two the project ships (station/models, crates/vad/assets)
+*.pt
+*.onnx
+*.wav
+*.pcm
+*.mp3
+*.ogg
+*.m4a
