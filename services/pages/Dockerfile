@@ -1,5 +1,5 @@
 # Web pages as text (the read_page tool): the standard library only.   docker build -t ranunculus-pages services/pages
-FROM python:3.14-slim
+FROM python:3.15-slim
 WORKDIR /app
 COPY pages.py webpage.py ./
 USER 1000:1000
