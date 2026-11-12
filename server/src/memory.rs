@@ -1,18 +1,20 @@
 //! The assistant's memory (memory.db).
-//! - Every exchange goes to SQLite: when, what was said, the answer, the tools used. Its vector (services/embeddings:
-//!   multilingual-e5-large-instruct) is added in the background; the word index (FTS5) by triggers.
+//! - Every exchange goes to SQLite: when, what was said, the answer, the tools used. Its vector (the embeddings model
+//!   chosen in the web UI, providers.rs) is added in the background; the word index (FTS5) by triggers.
 //! - search(): by meaning (cosine over all vectors, kept in RAM) and by words (FTS5 with crude Russian stems:
 //!   «работу» finds «работа»): meaning first, words only fill in after it (mixed in, they made the ranking worse),
-//!   optionally within dates. Without the embedding server it finds by words; the missing vectors are filled in
-//!   once it is back.
+//!   optionally within dates. With no embeddings model, or while its service is away, it finds by words; the
+//!   missing vectors are filled in once it is back. Another model: the vectors are made again, all of them.
 //! - facts: one-line notes about the user and the home, kept by the note-taker (notes.rs).
+use crate::services::Endpoint;
+use crate::session::log;
 use crate::text::{tz, MONTHS_GEN, WEEKDAYS};
 use chrono::{Datelike, NaiveDate, NaiveDateTime, TimeZone, Timelike};
 use regex::Regex;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock, Weak};
+use std::sync::{Arc, Mutex, OnceLock, RwLock, Weak};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -40,7 +42,8 @@ const STOP: &str =
 каком какую сколько почему зачем разве всё все весь вся";
 
 /// On a test set of 30 questions meaning alone put the right exchange first 29 times; words mixed in at 1.0 / 0.3 /
-/// 0.15 made it 25 / 27 / 27. So words only fill in (after the meaning hits) and stand in when there are no vectors (embedding server down).
+/// 0.15 made it 25 / 27 / 27. So words only fill in (after the meaning hits) and stand in when there are no vectors
+/// (no embeddings model, or its service down).
 const WORD_WEIGHT: f64 = 0.0;
 /// how long a search waits for its question's vector (it takes a fraction of a second when the service is there)
 const QUERY_WAIT: Duration = Duration::from_secs(3);
@@ -79,9 +82,9 @@ struct Vecs {
 pub struct Memory {
     db: Mutex<Connection>,
     vecs: Mutex<Vecs>,
-    embed: Option<String>,
-    http: reqwest::Client,
-    todo: Option<mpsc::UnboundedSender<i64>>,
+    /// who makes the vectors (`embed_with`); None: nobody, the search is by words
+    embed: RwLock<Option<Endpoint>>,
+    todo: mpsc::UnboundedSender<i64>,
 }
 
 fn dt(t: f64) -> chrono::DateTime<chrono_tz::Tz> {
@@ -155,14 +158,30 @@ pub fn doc(user: &str, answer: &str) -> String {
     format!("Пользователь: {user}\nМразота: {answer}")
 }
 
+/// Who made the vectors: a model of a service with its request fields; not the key (another key, the same model).
+fn made_by(e: &Endpoint) -> String {
+    format!("{} {} {}", e.url, e.model, Value::Object(e.extra.clone()))
+}
+
+/// What of an exchange its vector is made of, in characters: a service refuses a text over its limit, and one refused
+/// would hold up every vector after it. The e5 the memory began with read 512 tokens, about as much.
+const DOC_MAX: usize = 2000;
+
+fn clip(mut s: String, max: usize) -> String {
+    if let Some((i, _)) = s.char_indices().nth(max) {
+        s.truncate(i);
+    }
+    s
+}
+
 fn sql(e: rusqlite::Error) -> String {
     format!("memory: {e}")
 }
 
 impl Memory {
-    /// Opens (creating it if needed) the database. `embed`: the embeddings service; None — words only,
-    /// no vectors (tests). Must be called within the tokio runtime: the embedder runs there.
-    pub fn open(path: &str, embed: Option<&str>) -> Result<Arc<Memory>, String> {
+    /// Opens (creating it if needed) the database. Searched by words until `embed_with` names who makes the vectors.
+    /// Must be called within the tokio runtime: the embedder runs there.
+    pub fn open(path: &str) -> Result<Arc<Memory>, String> {
         let p = std::path::Path::new(path);
         if let Some(dir) = p.parent() {
             if !dir.exists() {
@@ -181,7 +200,7 @@ impl Memory {
         db.query_row("PRAGMA journal_mode=WAL", [], |r| r.get::<_, String>(0)).map_err(sql)?;
         db.execute_batch(SCHEMA).map_err(sql)?;
         let mut vecs = Vecs::default();
-        if embed.is_some() {
+        {
             let mut st =
                 db.prepare("SELECT id, t, vec FROM exchanges WHERE vec IS NOT NULL ORDER BY id").map_err(sql)?;
             let rows = st
@@ -201,25 +220,54 @@ impl Memory {
                 vecs.mat.extend(v);
             }
         }
-        let http = crate::http().timeout(Duration::from_secs(30)).build().expect("an HTTP client");
-        let (tx, rx) = if embed.is_some() {
-            let (a, b) = mpsc::unbounded_channel();
-            (Some(a), Some(b))
-        } else {
-            (None, None)
-        };
-        let m = Arc::new(Memory {
-            db: Mutex::new(db),
-            vecs: Mutex::new(vecs),
-            embed: embed.map(|s| s.trim_end_matches('/').to_string()),
-            http,
-            todo: tx,
-        });
-        if let Some(rx) = rx {
-            tokio::spawn(embedder(Arc::downgrade(&m), rx));
-            m.backfill()?;
-        }
+        let (todo, rx) = mpsc::unbounded_channel();
+        let m = Arc::new(Memory { db: Mutex::new(db), vecs: Mutex::new(vecs), embed: RwLock::new(None), todo });
+        tokio::spawn(embedder(Arc::downgrade(&m), rx));
         Ok(m)
+    }
+
+    /// Who makes the vectors from now on; None: nobody, the search is by words. Another model's vectors say nothing
+    /// to this one's questions: they are dropped, and every exchange gets a new one in the background.
+    pub fn embed_with(&self, e: Option<Endpoint>) {
+        {
+            let mut now = self.embed.write().unwrap();
+            if *now == e {
+                return;
+            }
+            *now = e.clone();
+        }
+        let Some(e) = e else { return };
+        let made_by = made_by(&e);
+        // whose the vectors are, unknown (a read that failed): nothing dropped or made; the next change or start asks
+        // again
+        let was = match self.meta_read("embedder") {
+            Ok(was) => was,
+            Err(e) => return log("server", format!("   ({e}: the vectors are left as they are)")),
+        };
+        if was.as_deref() != Some(made_by.as_str()) {
+            let dropped = {
+                // the index emptied under the database's lock too: the embedder writes under it (both, in this order)
+                let db = self.db.lock().unwrap();
+                *self.vecs.lock().unwrap() = Vecs::default();
+                db.execute("UPDATE exchanges SET vec = NULL WHERE vec IS NOT NULL", []).map_err(sql)
+            };
+            // the old ones still there: not said to be the new model's, so they are dropped again next time
+            let dropped = match dropped {
+                Ok(n) => n,
+                Err(e) => return log("server", format!("   ({e}: searched by words until the next start)")),
+            };
+            if let Err(e) = self.set_meta("embedder", &made_by) {
+                log("server", format!("   ({e})"));
+            }
+            if dropped > 0 {
+                log("server", format!("memory: another embeddings model, {dropped} vectors are made again"));
+            }
+        }
+        match self.backfill() {
+            Ok(0) => {}
+            Ok(n) => log("server", format!("memory: {n} exchanges get their vectors ({})", e.model)),
+            Err(e) => log("server", format!("   ({e})")),
+        }
     }
 
     // ------------------------------------------------------------ writing
@@ -233,15 +281,13 @@ impl Memory {
             .map_err(sql)?;
             db.last_insert_rowid()
         };
-        if let Some(tx) = &self.todo {
-            let _ = tx.send(id);
-        }
+        let _ = self.todo.send(id);
         Ok(id)
     }
 
-    /// Every exchange without a vector yet (the embedding server was down, or an import) goes to the embedder.
+    /// Every exchange without a vector yet (no embeddings model then, its service down, an import) goes to the
+    /// embedder.
     pub fn backfill(&self) -> Result<usize, String> {
-        let Some(tx) = &self.todo else { return Ok(0) };
         let ids: Vec<i64> = {
             let db = self.db.lock().unwrap();
             let mut st = db.prepare("SELECT id FROM exchanges WHERE vec IS NULL ORDER BY id").map_err(sql)?;
@@ -249,31 +295,15 @@ impl Memory {
             r
         };
         for id in &ids {
-            let _ = tx.send(*id);
+            let _ = self.todo.send(*id);
         }
         Ok(ids.len())
     }
 
-    pub async fn embed(&self, texts: &[String], kind: &str) -> Result<Vec<Vec<f32>>, String> {
-        let url = self.embed.as_ref().ok_or("no embedding server")?;
-        let r = self
-            .http
-            .post(format!("{url}/embed"))
-            .json(&json!({"texts": texts, "kind": kind}))
-            .send()
-            .await
-            .map_err(|e| format!("embed: {e}"))?;
-        if !r.status().is_success() {
-            return Err(format!("embed: HTTP {}", r.status()));
-        }
-        let v: Value = r.json().await.map_err(|e| format!("embed: {e}"))?;
-        let rows = v["vectors"].as_array().ok_or("embed: no vectors")?;
-        Ok(rows
-            .iter()
-            .map(|r| {
-                r.as_array().map(|a| a.iter().map(|x| x.as_f64().unwrap_or(0.0) as f32).collect()).unwrap_or_default()
-            })
-            .collect())
+    /// Texts → their vectors, by the model in use.
+    pub async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, String> {
+        let e = self.embed.read().unwrap().clone().ok_or("no embeddings model is chosen")?;
+        crate::services::embed(&e, texts).await
     }
 
     // ------------------------------------------------------------ reading
@@ -331,10 +361,10 @@ impl Memory {
             });
             *e += s;
         };
-        let have_vecs = !self.vecs.lock().unwrap().ids.is_empty();
+        let have_vecs = !self.vecs.lock().unwrap().ids.is_empty() && self.embed.read().unwrap().is_some();
         if have_vecs {
-            // the embeddings service may be away (the «memory» profile switched off, a restart): by words then, at once
-            if let Ok(Ok(q)) = tokio::time::timeout(QUERY_WAIT, self.embed(&[query.to_string()], "query")).await {
+            // the embeddings service may be away, or slow today: by words then
+            if let Ok(Ok(q)) = tokio::time::timeout(QUERY_WAIT, self.embed(&[query.to_string()])).await {
                 if let Some(q) = q.first() {
                     let hits: Vec<i64> = {
                         let v = self.vecs.lock().unwrap();
@@ -463,12 +493,16 @@ impl Memory {
     }
 
     pub fn meta(&self, key: &str) -> Option<String> {
+        self.meta_read(key).ok().flatten()
+    }
+
+    /// A read that failed told apart from nothing there.
+    fn meta_read(&self, key: &str) -> Result<Option<String>, String> {
         let db = self.db.lock().unwrap();
         db.query_row("SELECT value FROM meta WHERE key = ?", [key], |r| r.get::<_, Option<String>>(0))
             .optional()
-            .ok()
-            .flatten()
-            .flatten()
+            .map(Option::flatten)
+            .map_err(sql)
     }
 
     pub fn set_meta(&self, key: &str, value: &str) -> Result<(), String> {
@@ -493,9 +527,10 @@ impl Memory {
     }
 }
 
-/// In the background: vectors for new exchanges, in batches of up to 32. The server down — again in 30 s; words
+/// In the background: vectors for new exchanges, in batches of up to 32. The service down — again in 30 s; words
 /// work meanwhile.
 async fn embedder(mem: Weak<Memory>, mut rx: mpsc::UnboundedReceiver<i64>) {
+    let mut failing = false;
     while let Some(first) = rx.recv().await {
         let mut batch = vec![first];
         while batch.len() < 32 {
@@ -505,6 +540,8 @@ async fn embedder(mem: Weak<Memory>, mut rx: mpsc::UnboundedReceiver<i64>) {
             }
         }
         let Some(m) = mem.upgrade() else { return };
+        // nobody to make them: they wait in the database for `embed_with`
+        let Some(by) = m.embed.read().unwrap().clone() else { continue };
         let rows: Vec<(i64, String, String, f64)> = {
             let db = m.db.lock().unwrap();
             let ids = batch.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(",");
@@ -522,10 +559,22 @@ async fn embedder(mem: Weak<Memory>, mut rx: mpsc::UnboundedReceiver<i64>) {
         if rows.is_empty() {
             continue;
         }
-        let texts: Vec<String> = rows.iter().map(|(_, u, a, _)| doc(u, a)).collect();
-        match m.embed(&texts, "doc").await {
-            Ok(v) if v.len() == rows.len() => {
+        let texts: Vec<String> = rows.iter().map(|(_, u, a, _)| clip(doc(u, a), DOC_MAX)).collect();
+        let made = crate::services::embed(&by, &texts).await;
+        // another model chosen while these were made: they are not its vectors, and `embed_with` asked for new ones
+        // (another key alone: the same model, the vectors are kept)
+        let same = |m: &Memory| m.embed.read().unwrap().as_ref().map(made_by) == Some(made_by(&by));
+        if !same(&m) {
+            continue;
+        }
+        match made {
+            Ok(v) => {
+                failing = false;
                 let db = m.db.lock().unwrap();
+                // and once more under the lock the old ones are dropped under: a switch is wholly before or after this
+                if !same(&m) {
+                    continue;
+                }
                 let mut vecs = m.vecs.lock().unwrap();
                 for ((id, _, _, t), vec) in rows.iter().zip(v) {
                     let b: Vec<u8> = vec.iter().flat_map(|x| x.to_le_bytes()).collect();
@@ -542,14 +591,16 @@ async fn embedder(mem: Weak<Memory>, mut rx: mpsc::UnboundedReceiver<i64>) {
                     }
                 }
             }
-            _ => {
+            Err(e) => {
+                if !failing {
+                    log("server", format!("   (memory: {e}: searched by words until the vectors can be made)"));
+                }
+                failing = true;
                 drop(m);
                 tokio::time::sleep(Duration::from_secs(30)).await;
                 let Some(m) = mem.upgrade() else { return };
-                if let Some(tx) = &m.todo {
-                    for (id, ..) in &rows {
-                        let _ = tx.send(*id);
-                    }
+                for (id, ..) in &rows {
+                    let _ = m.todo.send(*id);
                 }
             }
         }
@@ -605,6 +656,13 @@ mod tests {
     }
 
     #[test]
+    fn a_long_exchange_is_embedded_by_its_beginning() {
+        let long = clip(doc("Расскажи сказку", &"я".repeat(3000)), DOC_MAX);
+        assert!(long.starts_with("Пользователь: Расскажи сказку\n") && long.chars().count() == DOC_MAX);
+        assert_eq!(clip("кот".into(), DOC_MAX), "кот");
+    }
+
+    #[test]
     fn days_in_moscow() {
         // memory._day, when, _numeric
         assert_eq!(day("2026-11-02", false).unwrap(), 1_793_566_800.0);
@@ -618,7 +676,7 @@ mod tests {
     #[tokio::test]
     async fn store_search_facts() {
         let path = tmp();
-        let m = Memory::open(&path, None).unwrap();
+        let m = Memory::open(&path).unwrap();
         let t0 = day("2026-11-01", false).unwrap();
         m.add("У меня кот рыжий, Барсик зовут.", "Привет Барсику!", &json!([]), t0 + 3600.0).unwrap();
         m.add(
@@ -655,6 +713,58 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("(пока нет)\n\nНовые реплики:\n[воскресенье, 01.11.2026, 01:00] Хозяин: У меня кот"));
+        let _ = std::fs::remove_dir_all(std::path::Path::new(&path).parent().unwrap());
+    }
+    #[tokio::test]
+    async fn vectors_by_the_model_in_use() {
+        let path = tmp();
+        let f = crate::services::fake::Service::start().await;
+        let by = |model: &str| Endpoint { url: f.url.clone(), model: model.into(), ..Default::default() };
+        let vectors = |m: &Memory| {
+            let db = m.db.lock().unwrap();
+            db.query_row("SELECT COUNT(*) FROM exchanges WHERE vec IS NOT NULL", [], |r| r.get::<_, i64>(0)).unwrap()
+        };
+        async fn until(what: impl Fn() -> bool) {
+            for _ in 0..200 {
+                if what() {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            panic!("not in two seconds");
+        }
+        let m = Memory::open(&path).unwrap();
+        m.add("Мою собаку зовут Грета.", "Запомнила.", &json!([]), 1.0).unwrap();
+        m.add("Какая погода?", "Плюс пять.", &json!([]), 2.0).unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!((vectors(&m), f.asked().len()), (0, 0), "nobody to make them yet");
+        // a model chosen: what was waiting gets its vectors, and the search asks for the question's
+        m.embed_with(Some(by("a/one")));
+        until(|| vectors(&m) == 2).await;
+        assert_eq!(m.meta("embedder").as_deref(), Some(format!("{} a/one {{}}", f.url).as_str()));
+        let found = m.search("питомец", None, None, 6).await.unwrap();
+        assert_eq!(found.len(), 2, "by the vectors: the words find nothing here");
+        // the same one named again (a new key, a restart): nothing is made again
+        let asked = f.asked().len();
+        m.embed_with(Some(Endpoint { key: "sk-new".into(), ..by("a/one") }));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!((vectors(&m), f.asked().len()), (2, asked));
+        // another model: all of them again, by it
+        m.embed_with(Some(by("a/two")));
+        until(|| vectors(&m) == 2 && f.asked().last().is_some_and(|a| a.body["model"] == "a/two")).await;
+        assert_eq!(m.vecs.lock().unwrap().ids.len(), 2);
+        // nobody again: the vectors stay for the day it is back, the search is by words
+        m.embed_with(None);
+        assert!(m.search("питомец", None, None, 6).await.unwrap().is_empty());
+        assert_eq!(m.search("собака", None, None, 6).await.unwrap().len(), 1);
+        drop(m);
+        // a restart: the vectors are read, and the same model keeps them
+        let m = Memory::open(&path).unwrap();
+        assert_eq!(m.vecs.lock().unwrap().ids.len(), 2);
+        let asked = f.asked().len();
+        m.embed_with(Some(by("a/two")));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!((vectors(&m), f.asked().len()), (2, asked));
         let _ = std::fs::remove_dir_all(std::path::Path::new(&path).parent().unwrap());
     }
 }

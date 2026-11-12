@@ -99,6 +99,36 @@
   }
 }
 
+/* Модели: a card's icon and heading; the first key; a role or a connection in a line */
+.card-title {
+  flex: 1 1 240px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* a heading with its button beside it: on a narrow screen the button goes under it, not the text into a column */
+.card-head:has(> .card-title) {
+  flex-wrap: wrap;
+}
+
+.card-title .r-text b {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.key-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.key-row .field {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
 .provs {
   display: flex;
   flex-direction: column;
@@ -248,6 +278,13 @@
 
 .confirm > span {
   flex: 1 1 200px;
+}
+
+/* the answers stay together: on a narrow screen they go under the question as one, to the right */
+.confirm-acts {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .drop {

@@ -63,17 +63,19 @@ export default function Users() {
                 {asked === u.id && (
                   <div className="confirm" role="alertdialog" aria-label={`Удалить «${u.name}»?`}>
                     <span>Удалить «{u.name}»? Войти под этим именем будет нельзя.</span>
-                    <button
-                      type="button"
-                      className="btn sm danger solid"
-                      onClick={() => remove(u.id)}
-                      disabled={removeBusy}
-                    >
-                      Удалить
-                    </button>
-                    <button type="button" className="btn sm" onClick={() => setAsked(null)}>
-                      Отмена
-                    </button>
+                    <div className="confirm-acts">
+                      <button
+                        type="button"
+                        className="btn sm danger solid"
+                        onClick={() => remove(u.id)}
+                        disabled={removeBusy}
+                      >
+                        Удалить
+                      </button>
+                      <button type="button" className="btn sm" onClick={() => setAsked(null)}>
+                        Отмена
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

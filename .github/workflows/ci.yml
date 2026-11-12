@@ -63,8 +63,6 @@ jobs:
       - run: pip install ruff==0.17.4
       - run: ruff check services tools
       - run: ruff format --check services tools
-      - run: pip install -r services/tts/requirements.txt
-      - run: python -m unittest discover -s services/tts -p 'test_*.py'
       - run: shellcheck station/install.sh tools/version.sh
       - name: One version everywhere
         run: tools/version.sh
@@ -72,7 +70,7 @@ jobs:
   stack:
     name: Built from source and talked to (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -82,16 +80,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Build every image
-        run: docker compose --profile memory build
-      - name: Start (recognition and the voice download their models)
-        run: docker compose -f compose.yaml -f tools/e2e.compose.yaml up -d --wait --wait-timeout 1200
+        run: docker compose build
+      - name: Start
+        run: docker compose up -d --wait --wait-timeout 600
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
       - name: A conversation, end to end
         run: |
           pip install numpy websockets
-          python tools/e2e.py --token "$(docker compose exec -T server cat data/token)" --tts http://127.0.0.1:47711
+          python tools/e2e.py --token "$(docker compose exec -T server cat data/token)"
       - name: What the services said
         if: failure()
         run: docker compose logs --no-color --tail 200

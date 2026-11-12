@@ -23,16 +23,12 @@
 
 | Что | Сервис | Лицензия |
 |---|---|---|
-| GigaAM v3, модель и код | `asr` | MIT |
-| Голоса Silero `v5_6_ru` | `tts` | CC BY-NC-SA 4.0: только некоммерческое использование |
-| multilingual-e5-large-instruct | `embeddings` | MIT |
-| PyTorch | `asr`, `tts`, `embeddings` | BSD-3-Clause |
-| sentence-transformers | `embeddings` | Apache-2.0 |
-| num2words | `tts` | LGPL-2.1 |
-| pymorphy3 и словари OpenCorpora | `tts` | MIT; словари CC BY-SA 3.0 |
 | yt-dlp | `music` | Unlicense |
 | FFmpeg из пакетов Debian | `server`, `music` | LGPL и GPL, по сборке Debian |
 | SearXNG, готовый образ без изменений | `search` | AGPL-3.0 |
+
+Модели для распознавания, ответов, голоса и памяти в Ranunculus не входят: их предоставляет сервис, который вы
+подключили, на своих условиях.
 
 Прогноз погоды и поиск городов: [Open-Meteo](https://open-meteo.com), данные по лицензии CC BY 4.0.
 

@@ -43,8 +43,10 @@ const SILENT: Duration = Duration::from_secs(15);
 const SEND_FOR: Duration = Duration::from_secs(5);
 /// said when the model fails to answer
 const LOST: &str = "Что-то я задумалась и потеряла мысль. Повтори, пожалуйста.";
-/// said until the user adds a model in the web UI
-const NO_MODEL: &str = "Мне пока нечем отвечать: модель не выбрана. Добавь её в настройках.";
+/// said until the user chooses a model in the web UI
+const NO_MODEL: &str = "Мне пока нечем отвечать: модель не выбрана. Выбери её в настройках.";
+/// said when recognition does not answer: none chosen, its key refused, no internet
+const DEAF: &str = "Не могу разобрать речь: распознавание не отвечает. Загляни в настройки.";
 const KWS_THRESHOLD: f32 = 0.8;
 const KWS_BARGE: f32 = 0.85; // while the answer plays: its echo's residual is in the microphone (0.95 is too strict for double talk)
 
@@ -689,11 +691,11 @@ async fn request(
     let services = shared.providers.services();
     shared.fillers.prepare(&services);
     let t1 = now_s();
-    let (raw, _) = match services.transcribe(&audio).await {
-        Ok(r) => r,
+    let (raw, deaf) = match services.transcribe(&audio).await {
+        Ok(r) => (r, false),
         Err(e) => {
             log(&dev, format!("   ({e})"));
-            (String::new(), 0.0)
+            (String::new(), true)
         }
     };
     let text = strip_wake(&raw);
@@ -732,7 +734,7 @@ async fn request(
     let action = player.as_ref().filter(|p| p.has_queue()).and_then(|_| music::spoken_command(&text));
     let say = |s: &str| events::emit("said", json!({"device": dev, "turn": turn, "text": s}));
     let (answer, calls): (String, Vec<Done>) = if text.is_empty() {
-        let a = "Не расслышала.".to_string();
+        let a = if deaf { DEAF } else { "Не расслышала." }.to_string();
         say(&a);
         q.text(a.clone());
         (a, vec![])

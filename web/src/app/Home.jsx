@@ -1,12 +1,13 @@
-// Главная: what needs a hand now (a ring), what plays, the stations with their volume, and what is set to ring
-// (the timers going, the alarms on). Editing an alarm is on its station's page.
+// Главная: what needs a hand now (a ring; no models chosen yet), what plays, the stations with their volume, and what
+// is set to ring (the timers going, the alarms on). Editing an alarm is on its station's page.
 import { useMemo } from 'react'
 import { Link } from 'react-router'
-import { AlarmClock, ChevronRight, Music2, Speaker, X } from 'lucide-react'
+import { AlarmClock, ChevronRight, KeyRound, Music2, Speaker, X } from 'lucide-react'
 import { api } from '../shared/api.js'
 import { useAction, useNow } from '../shared/hooks.js'
 import { deviceList, deviceName, useStore } from '../shared/store.js'
 import { clock, lastSeen, ringDay, status, trackTime } from '../shared/format.js'
+import { missing, nothingChosen } from '../shared/providers.js'
 import { devicePath, Dot, Empty, PageHead, PlayerCard, RingingCard, Switch, VolumeSlider } from './ui.jsx'
 import { Glyph } from './Flower.jsx'
 import { tz } from '../shared/zone.js'
@@ -125,6 +126,8 @@ function Agenda({ devices, list, className }) {
 export default function Home() {
   const devices = useStore((s) => s.devices)
   const link = useStore((s) => s.link)
+  const providers = useStore((s) => s.providers)
+  const unset = missing(providers)
   const list = useMemo(() => deviceList(devices), [devices])
   const ringing = list.filter((d) => d.online && d.ring)
   const playing = list.filter((d) => d.online && d.music && !d.ring)
@@ -158,6 +161,15 @@ export default function Home() {
   return (
     <main className="page">
       <PageHead over={today()} title="Главная" />
+      {unset.length > 0 && (
+        <div className="card">
+          <Empty icon={KeyRound} title="Осталось выбрать модели" small>
+            Пока их нет, колонка не услышит и не ответит.{' '}
+            {nothingChosen(providers) ? 'Хватит одного ключа OpenRouter:' : 'Выбрать их можно в'}{' '}
+            <Link to="/settings/models">Настройки → Модели</Link>.
+          </Empty>
+        </div>
+      )}
       {ringing.length > 0 && (
         <div className="row">
           {ringing.map((d) => (

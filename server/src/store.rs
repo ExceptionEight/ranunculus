@@ -1,5 +1,5 @@
-//! server.db (600): the settings, the devices seen (and the names the user gave them), the alarms, the providers, the
-//! wakes recorded, the music listened to, the web UI's users and sessions (web/auth.rs) and the chats: every exchange
+//! server.db (600): the settings, the devices seen (and the names the user gave them), the alarms, the connections
+//! and what each role uses of them (providers.rs), the wakes recorded, the music listened to, the web UI's users and sessions (web/auth.rs) and the chats: every exchange
 //! of every device, with what was heard, the answer, the tools and the timings.
 //! The assistant's memory (memory.rs) is another thing: what it remembers; this is the record.
 //! The schema grows by numbered steps (PRAGMA user_version), never edited in place.
@@ -42,21 +42,45 @@ CREATE UNIQUE INDEX users_oidc ON users (issuer, subject) WHERE issuer IS NOT NU
 CREATE TABLE sessions (hash TEXT PRIMARY KEY, user INTEGER NOT NULL, t REAL NOT NULL, seen REAL NOT NULL, auth_t REAL NOT NULL,
                        ip TEXT NOT NULL, agent TEXT NOT NULL);
 CREATE INDEX sessions_user ON sessions (user);
+", "
+-- a key is given once, to a connection (a service's address); a role then names a connection and a model on it.
+-- From the providers, one per kind in use: a connection of every address and key, a role of every one that was in use
+CREATE TABLE connections (id INTEGER PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, key TEXT NOT NULL DEFAULT '', updated REAL NOT NULL);
+CREATE TABLE roles (role TEXT PRIMARY KEY, connection INTEGER NOT NULL REFERENCES connections (id), model TEXT NOT NULL DEFAULT '',
+                    voice TEXT NOT NULL DEFAULT '', speed REAL, extra TEXT NOT NULL DEFAULT '{}', updated REAL NOT NULL);
+INSERT INTO connections (name, url, key, updated)
+  SELECT name, url, key, updated FROM providers p
+  WHERE id = (SELECT min(id) FROM providers q WHERE q.url = p.url AND q.key = p.key) ORDER BY id;
+INSERT INTO roles (role, connection, model, voice, speed, extra, updated)
+  SELECT p.kind, c.id, p.model, p.voice, p.speed, p.extra, p.updated
+  FROM providers p JOIN connections c ON c.url = p.url AND c.key = p.key
+  WHERE p.id = coalesce((SELECT q.id FROM providers q, settings s
+                         WHERE s.key = 'providers' AND q.kind = p.kind AND q.id = json_extract(s.value, '$.' || p.kind)),
+                        (SELECT min(q.id) FROM providers q WHERE q.kind = p.kind));
+DROP TABLE providers;
+DELETE FROM settings WHERE key = 'providers';
 "];
 
 pub struct Store {
     pub(crate) db: Mutex<Connection>,
 }
 
-/// A provider as kept (providers.rs has what it means). `key` never leaves the server.
+/// A service's address and the key given for it (providers.rs has what they mean). `key` never leaves the server.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ProviderRow {
+pub struct ConnectionRow {
     pub id: i64,
-    pub kind: String,
     pub name: String,
     pub url: String,
-    pub model: String,
     pub key: String,
+    pub updated: f64,
+}
+
+/// What a role uses: a model on a connection; a voice and its speed (the voice's role), the request's own fields.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RoleRow {
+    pub role: String,
+    pub connection: i64,
+    pub model: String,
     pub voice: String,
     pub speed: Option<f64>,
     pub extra: Value,
@@ -140,6 +164,7 @@ impl Store {
 
     // ------------------------------------------------------------ settings
     /// None: none kept, or it could not be read (`setting_kept` tells which).
+    #[cfg(test)]
     pub fn setting(&self, key: &str) -> Option<Value> {
         self.setting_kept(key).ok().flatten()
     }
@@ -227,53 +252,84 @@ impl Store {
         .unwrap_or(0) as usize
     }
 
-    // ------------------------------------------------------------ providers
-    pub fn providers(&self) -> Result<Vec<ProviderRow>, String> {
+    // ------------------------------------------------------------ connections and roles (providers.rs)
+    pub fn connections(&self) -> Result<Vec<ConnectionRow>, String> {
+        let db = self.db.lock().unwrap();
+        let mut st = db.prepare("SELECT id, name, url, key, updated FROM connections ORDER BY id").map_err(sql)?;
+        let rows = st
+            .query_map([], |r| {
+                Ok(ConnectionRow { id: r.get(0)?, name: r.get(1)?, url: r.get(2)?, key: r.get(3)?, updated: r.get(4)? })
+            })
+            .map_err(sql)?;
+        rows.collect::<Result<_, _>>().map_err(sql)
+    }
+
+    /// A new one (`c.id` 0) → its id; or an existing one written over.
+    pub fn save_connection(&self, c: &ConnectionRow) -> Result<i64, String> {
+        let db = self.db.lock().unwrap();
+        if c.id > 0 {
+            let n = db
+                .execute(
+                    "UPDATE connections SET name = ?1, url = ?2, key = ?3, updated = ?4 WHERE id = ?5",
+                    params![c.name, c.url, c.key, c.updated, c.id],
+                )
+                .map_err(sql)?;
+            if n == 0 {
+                return Err(format!("нет подключения {}", c.id));
+            }
+            return Ok(c.id);
+        }
+        db.execute(
+            "INSERT INTO connections (name, url, key, updated) VALUES (?1, ?2, ?3, ?4)",
+            params![c.name, c.url, c.key, c.updated],
+        )
+        .map_err(sql)?;
+        Ok(db.last_insert_rowid())
+    }
+
+    /// Not one a role uses: the database refuses that.
+    pub fn delete_connection(&self, id: i64) -> Result<bool, String> {
+        let db = self.db.lock().unwrap();
+        Ok(db.execute("DELETE FROM connections WHERE id = ?", [id]).map_err(sql)? > 0)
+    }
+
+    pub fn roles(&self) -> Result<Vec<RoleRow>, String> {
         let db = self.db.lock().unwrap();
         let mut st = db
-            .prepare(
-                "SELECT id, kind, name, url, model, key, voice, speed, extra, updated FROM providers ORDER BY kind, id",
-            )
+            .prepare("SELECT role, connection, model, voice, speed, extra, updated FROM roles ORDER BY role")
             .map_err(sql)?;
         let rows = st
             .query_map([], |r| {
-                let extra: String = r.get(8)?;
-                Ok(ProviderRow {
-                    id: r.get(0)?,
-                    kind: r.get(1)?,
-                    name: r.get(2)?,
-                    url: r.get(3)?,
-                    model: r.get(4)?,
-                    key: r.get(5)?,
-                    voice: r.get(6)?,
-                    speed: r.get(7)?,
+                let extra: String = r.get(5)?;
+                Ok(RoleRow {
+                    role: r.get(0)?,
+                    connection: r.get(1)?,
+                    model: r.get(2)?,
+                    voice: r.get(3)?,
+                    speed: r.get(4)?,
                     extra: serde_json::from_str(&extra).unwrap_or(json!({})),
-                    updated: r.get(9)?,
+                    updated: r.get(6)?,
                 })
             })
             .map_err(sql)?;
         rows.collect::<Result<_, _>>().map_err(sql)
     }
 
-    /// A new one (`p.id` 0) → its id; or an existing one written over.
-    pub fn save_provider(&self, p: &ProviderRow) -> Result<i64, String> {
+    /// What the role uses from now on.
+    pub fn save_role(&self, r: &RoleRow) -> Result<(), String> {
         let db = self.db.lock().unwrap();
-        if p.id > 0 {
-            let n = db.execute("UPDATE providers SET kind = ?1, name = ?2, url = ?3, model = ?4, key = ?5, voice = ?6, speed = ?7, extra = ?8, updated = ?9
-                                WHERE id = ?10", params![p.kind, p.name, p.url, p.model, p.key, p.voice, p.speed, p.extra.to_string(), p.updated, p.id]).map_err(sql)?;
-            if n == 0 {
-                return Err(format!("нет подключения {}", p.id));
-            }
-            return Ok(p.id);
-        }
-        db.execute("INSERT INTO providers (kind, name, url, model, key, voice, speed, extra, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-                   params![p.kind, p.name, p.url, p.model, p.key, p.voice, p.speed, p.extra.to_string(), p.updated]).map_err(sql)?;
-        Ok(db.last_insert_rowid())
+        db.execute(
+            "INSERT INTO roles (role, connection, model, voice, speed, extra, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT (role) DO UPDATE SET connection = ?2, model = ?3, voice = ?4, speed = ?5, extra = ?6, updated = ?7",
+            params![r.role, r.connection, r.model, r.voice, r.speed, r.extra.to_string(), r.updated],
+        )
+        .map_err(sql)?;
+        Ok(())
     }
 
-    pub fn delete_provider(&self, id: i64) -> Result<bool, String> {
+    pub fn delete_role(&self, role: &str) -> Result<bool, String> {
         let db = self.db.lock().unwrap();
-        Ok(db.execute("DELETE FROM providers WHERE id = ?", [id]).map_err(sql)? > 0)
+        Ok(db.execute("DELETE FROM roles WHERE role = ?", [role]).map_err(sql)? > 0)
     }
 
     // ------------------------------------------------------------ wakes (wakes.rs)
@@ -540,6 +596,62 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
         let p = d.join("sub").join("server.db").to_string_lossy().to_string();
         (d, p)
+    }
+
+    /// The first schema's providers: recognition and a voice at home, two models of one service under one key (the
+    /// second in use), one more of another service not in use.
+    #[test]
+    fn providers_become_connections_and_roles() {
+        let (d, p) = tmp("roles");
+        std::fs::create_dir_all(d.join("sub")).unwrap();
+        let db = Connection::open(&p).unwrap();
+        db.execute_batch(MIGRATIONS[0]).unwrap();
+        db.execute_batch(
+            "PRAGMA user_version = 1;
+             INSERT INTO providers (id, kind, name, url, model, key, voice, speed, extra, updated) VALUES
+               (1, 'asr', 'GigaAM', 'http://asr:8000/v1', 'gigaam', '', '', NULL, '{}', 1),
+               (2, 'tts', 'Silero', 'http://tts:8000/v1', '', '', 'xenia', 1.2, '{\"pitch\": 2}', 2),
+               (3, 'llm', 'OpenRouter', 'https://openrouter.ai/api/v1', 'a/first', 'sk-or-1', '', NULL, '{}', 3),
+               (4, 'llm', 'Вторая', 'https://openrouter.ai/api/v1', 'a/second', 'sk-or-1', '', NULL, '{}', 4),
+               (5, 'llm', 'Дома', 'http://127.0.0.1:11434/v1', 'qwen', '', '', NULL, '{}', 5);
+             INSERT INTO settings (key, value, t) VALUES ('providers', '{\"llm\": 4, \"asr\": 1}', 1), ('timer', '{}', 1);",
+        )
+        .unwrap();
+        drop(db);
+        let s = Store::open(&p).unwrap();
+        let c = s.connections().unwrap();
+        assert_eq!(
+            c.iter().map(|c| (c.name.as_str(), c.url.as_str(), c.key.as_str())).collect::<Vec<_>>(),
+            [
+                ("GigaAM", "http://asr:8000/v1", ""),
+                ("Silero", "http://tts:8000/v1", ""),
+                ("OpenRouter", "https://openrouter.ai/api/v1", "sk-or-1"),
+                ("Дома", "http://127.0.0.1:11434/v1", ""),
+            ],
+            "one of every address and key"
+        );
+        let of = |name: &str| c.iter().find(|c| c.name == name).unwrap().id;
+        let r = s.roles().unwrap();
+        assert_eq!(
+            r.iter().map(|r| (r.role.as_str(), r.connection, r.model.as_str())).collect::<Vec<_>>(),
+            [("asr", of("GigaAM"), "gigaam"), ("llm", of("OpenRouter"), "a/second"), ("tts", of("Silero"), "")],
+            "the chosen one of a kind, else the first"
+        );
+        assert_eq!((r[2].voice.as_str(), r[2].speed, &r[2].extra), ("xenia", Some(1.2), &json!({"pitch": 2})));
+        assert!(s.setting("providers").is_none() && s.setting("timer").is_some());
+        // a role's connection stays while the role uses it
+        assert!(s.delete_connection(of("OpenRouter")).is_err());
+        assert_eq!(s.delete_connection(of("Дома")), Ok(true));
+        // a role changed, and another given up
+        s.save_role(&RoleRow { model: "a/third".into(), updated: 9.0, ..r[1].clone() }).unwrap();
+        assert_eq!((s.delete_role("tts"), s.delete_role("tts")), (Ok(true), Ok(false)));
+        let r = s.roles().unwrap();
+        assert_eq!(
+            r.iter().map(|r| (r.role.as_str(), r.model.as_str())).collect::<Vec<_>>(),
+            [("asr", "gigaam"), ("llm", "a/third")]
+        );
+        assert_eq!(s.delete_connection(of("Silero")), Ok(true));
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]

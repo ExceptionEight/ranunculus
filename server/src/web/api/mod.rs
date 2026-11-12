@@ -20,10 +20,12 @@
 //!   GET    /api/alarms · POST /api/alarms · PATCH /api/alarms/{id} · DELETE /api/alarms/{id}   alarms (alarms.rs)
 //!   GET    /api/stats?device=&days=30      the exchanges per day, by the hour, per device (analytics)
 //!   GET    /api/music?device=&days=30      the music listened to: per day, the totals, songs, the most skipped, artists
-//!   GET    /api/providers · POST /api/providers · PATCH|DELETE /api/providers/{id}   who answers, hears, speaks
-//!   PATCH  /api/providers/in-use           {"llm"|"asr"|"tts": id}: the one of a kind every station uses
-//!   POST   /api/providers/{id}/check       a model answers, a voice speaks (WAV), recognition hears a phrase
-//!   POST   /api/providers/models           {url, key? | id}: a service's models (with prices, if it says them)
+//!   GET    /api/providers                  the connections (keys hidden) and what each role uses of them
+//!   POST   /api/connections · PATCH|DELETE /api/connections/{id}   a service's address and its key, given once
+//!   POST   /api/connections/{id}/models    {"role"}: the service's models for a role (prices, voices, if it says them)
+//!   PUT    /api/roles/{role}               {connection, model, voice?, speed?}: who hears (asr), answers (llm), speaks
+//!                                          (tts), makes the memory's vectors (embeddings); DELETE: embeddings only
+//!   POST   /api/roles/{role}/check         a model answers, a voice speaks (WAV), recognition hears a phrase
 //!   GET    /api/wakes?device=&label=&before=&limit=   every wake recorded (wakes.rs), newest first, and the counts
 //!   GET    /api/wakes/{id}/audio · PATCH /api/wakes/{id} {"label": "me"|"not"|null} · DELETE /api/wakes/{id}
 mod alarms;
@@ -90,14 +92,15 @@ pub fn routes() -> Router<App> {
         .route("/api/alarms/{id}", axum::routing::patch(alarms::change_alarm).delete(alarms::delete_alarm))
         .route("/api/stats", get(stats))
         .route("/api/music", get(music_stats))
-        .route("/api/providers", get(providers::list_providers).post(providers::add_provider))
-        .route("/api/providers/in-use", axum::routing::patch(providers::choose_providers))
-        .route("/api/providers/models", post(providers::models))
+        .route("/api/providers", get(providers::list_providers))
+        .route("/api/connections", post(providers::add_connection))
         .route(
-            "/api/providers/{id}",
-            axum::routing::patch(providers::change_provider).delete(providers::delete_provider),
+            "/api/connections/{id}",
+            axum::routing::patch(providers::change_connection).delete(providers::delete_connection),
         )
-        .route("/api/providers/{id}/check", post(providers::check_provider))
+        .route("/api/connections/{id}/models", post(providers::models))
+        .route("/api/roles/{role}", put(providers::set_role).delete(providers::clear_role))
+        .route("/api/roles/{role}/check", post(providers::check_role))
         .route("/api/wakes", get(wakes::list_wakes))
         .route("/api/wakes/{id}", axum::routing::patch(wakes::mark_wake).delete(wakes::delete_wake))
         .route("/api/wakes/{id}/audio", get(wakes::wake_audio))

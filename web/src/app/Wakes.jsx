@@ -50,7 +50,9 @@ function Item({ w, onChange, onDelete }) {
     }
   }
   const command = w.heard == null ? '…' : w.heard === '' ? 'тишина' : `«${w.heard}»`
-  const word = w.heard_window == null ? '…' : w.heard_window ? `«${w.heard_window}»` : 'не разобрано'
+  // the window is recognised only by recognition at home, right after the command: none a minute on, none coming
+  const late = w.heard != null && Date.now() / 1000 - w.t > 60
+  const word = w.heard_window == null ? (late ? null : '…') : w.heard_window ? `«${w.heard_window}»` : 'не разобрано'
   return (
     <li className="wake">
       <button
@@ -74,7 +76,7 @@ function Item({ w, onChange, onDelete }) {
             {w.barge ? ' · во время ответа' : ''}
           </span>
         </b>
-        <span>Слово: {word}</span>
+        {word && <span>Слово: {word}</span>}
         <span>Команда: {command}</span>
         {error && <span className="err">{error}</span>}
       </div>

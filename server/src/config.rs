@@ -5,13 +5,11 @@
 //! listen = "0.0.0.0:52700"           # the stations connect here (TLS with the certificate in `data`)
 //! station_client = "station/ranunculus-station"   # the client for stations, of this server's version: a station
 //!                                    #   of another version is given it and updates itself; "" or no such file — refused
-//! [services]                         # the services beside the server (services/); "" — none
-//! asr = "http://127.0.0.1:52710"     # speech recognition and the voice: the first start makes them connections,
-//! tts = "http://127.0.0.1:52711"     #   after that the web UI has the say (Настройки → Модели)
+//! [services]                         # the services beside the server (services/); "" — none. The models — who
+//!                                    #   hears, answers, speaks — are chosen in the web UI (Настройки → Модели)
 //! pages = "http://127.0.0.1:52712"   # a web page as text (the read_page tool)
 //! search = "http://127.0.0.1:8888/search"   # SearXNG (the web_search tool)
 //! music = "http://127.0.0.1:52713"
-//! embeddings = ""                    # memory search by meaning; "" — by words only
 //! [memory]
 //! notes = true                       # the note-taker
 //! prewarm = true                     # the prompt into the cache of a model at home at start (and after new notes)
@@ -67,23 +65,42 @@ impl Default for Config {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default, deny_unknown_fields)]
 pub struct Services {
-    pub asr: String,
-    pub tts: String,
     pub pages: String,
     pub search: String,
     pub music: String,
-    pub embeddings: String,
+    /// The services of the first version (recognition, the voice, the memory's vectors), now roles chosen in the web
+    /// UI: a server.toml of then still starts the server, and the log says they are not read.
+    #[serde(rename = "asr")]
+    pub old_asr: Option<serde::de::IgnoredAny>,
+    #[serde(rename = "tts")]
+    pub old_tts: Option<serde::de::IgnoredAny>,
+    #[serde(rename = "embeddings")]
+    pub old_embeddings: Option<serde::de::IgnoredAny>,
+}
+
+impl Services {
+    /// Those of the first version still in the file.
+    pub fn old(&self) -> Vec<&'static str> {
+        [
+            ("asr", self.old_asr.is_some()),
+            ("tts", self.old_tts.is_some()),
+            ("embeddings", self.old_embeddings.is_some()),
+        ]
+        .into_iter()
+        .filter_map(|(k, there)| there.then_some(k))
+        .collect()
+    }
 }
 
 impl Default for Services {
     fn default() -> Services {
         Services {
-            asr: "http://127.0.0.1:52710".into(),
-            tts: "http://127.0.0.1:52711".into(),
             pages: "http://127.0.0.1:52712".into(),
             search: "http://127.0.0.1:8888/search".into(),
             music: "http://127.0.0.1:52713".into(),
-            embeddings: String::new(),
+            old_asr: None,
+            old_tts: None,
+            old_embeddings: None,
         }
     }
 }
@@ -233,15 +250,20 @@ mod tests {
             (c.listen.as_str(), c.at("server.db").as_str(), c.web.cert.as_str()),
             ("0.0.0.0:52700", "data/server.db", "data/tls/server.crt")
         );
-        assert!(c.services.embeddings.is_empty() && c.memory.notes && c.web.tls);
+        assert!(c.memory.notes && c.web.tls);
         let c = Config::parse("data = \"/var/lib/ranunculus/\"\n[services]\nmusic = \"\"\n[web]\nlisten = \"\"\ncert = \"/x/a.crt\"\nkey = \"/x/a.key\"\n").unwrap();
         assert_eq!(
             (c.at("wakes").as_str(), c.services.music.as_str(), c.web.key.as_str()),
             ("/var/lib/ranunculus/wakes", "", "/x/a.key")
         );
-        assert_eq!(c.services.asr, Services::default().asr, "what the file leaves out stays");
-        // a typo is said, not passed over
-        assert!(Config::parse("[service]\nasr = \"\"\n").unwrap_err().contains("unknown field"));
+        assert_eq!(c.services.pages, Services::default().pages, "what the file leaves out stays");
+        // a typo is said, not passed over; and so is a service of an older version (the models are in the web UI now)
+        assert!(Config::parse("[service]\nmusic = \"\"\n").unwrap_err().contains("unknown field"));
+        // the first version's services: read past, and said
+        let old =
+            Config::parse("[services]\nasr = \"http://asr:8000\"\nembeddings = \"http://embeddings:8000\"\n").unwrap();
+        assert_eq!(old.services.old(), ["asr", "embeddings"]);
+        assert!(Config::parse("").unwrap().services.old().is_empty());
         assert!(Config::parse("[web]\ncert = \"/x/a.crt\"\n").is_err());
         assert!(Config::parse("[web]\ntrusted_proxies = [\"10.0.0.300\"]\n").is_err());
     }

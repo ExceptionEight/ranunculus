@@ -18,6 +18,7 @@ use crate::config;
 use crate::session::log;
 use crate::store::{sql, Store};
 use crate::text::now_s;
+use crate::why;
 use axum::extract::{Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
@@ -130,16 +131,6 @@ impl<'c> openidconnect::AsyncHttpClient<'c> for Http {
             b.body(answer.bytes().await.map_err(Box::new)?.to_vec()).map_err(openidconnect::HttpClientError::Http)
         })
     }
-}
-
-fn why(e: &dyn std::error::Error) -> String {
-    let mut s = e.to_string();
-    let mut src = e.source();
-    while let Some(x) = src {
-        s += &format!(": {x}");
-        src = x.source();
-    }
-    s
 }
 
 impl Oidc {

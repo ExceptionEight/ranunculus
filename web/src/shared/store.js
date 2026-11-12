@@ -16,7 +16,7 @@ let state = {
   settings: null,
   timers: [],
   alarms: [], // soonest first
-  providers: null, // {items, in_use}: who answers, hears, speaks
+  providers: null, // {connections, roles}: who hears, answers, speaks, makes the memory's vectors
   sounds: null, // null: not fetched yet
   live: {}, // device → {turn, heard, text, said: [sentences], t}: the exchange going on now
   chats: {}, // device id, or '*' for all → {items: oldest first, more, loading, error}

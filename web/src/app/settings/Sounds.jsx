@@ -109,12 +109,14 @@ function SoundItem({ s, used, preview }) {
           <span>
             Удалить «{soundTitle(s.name)}»?{used.length > 0 ? ' Вместо него будет звучать колокольчик.' : ''}
           </span>
-          <button type="button" className="btn sm danger solid" disabled={delBusy} onClick={() => del()} autoFocus>
-            Удалить
-          </button>
-          <button type="button" className="btn sm" onClick={() => setConfirm(false)}>
-            Отмена
-          </button>
+          <div className="confirm-acts">
+            <button type="button" className="btn sm danger solid" disabled={delBusy} onClick={() => del()} autoFocus>
+              Удалить
+            </button>
+            <button type="button" className="btn sm" onClick={() => setConfirm(false)}>
+              Отмена
+            </button>
+          </div>
         </div>
       )}
       {(renError || delError) && <p className="err r-full">{renError || delError}</p>}

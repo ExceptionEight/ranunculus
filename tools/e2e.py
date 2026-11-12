@@ -1,24 +1,26 @@
-"""One conversation through a running Ranunculus, end to end, with no station and no real model:
+"""One conversation through a running Ranunculus, end to end, with no station and no real models:
 
 - a stand-in station speaks the protocol (crates/proto): the wake, the command's audio as a microphone gives it,
   and it records what the server plays back;
-- a stand-in model answers with a fixed phrase over the OpenAI chat API;
-- the server, speech recognition and the voice are the real ones.
+- a stand-in service speaks the OpenAI-style APIs every role is asked by: recognition hears the command whatever the
+  audio, the model answers with a fixed phrase, the voice is a tone, the embeddings are fixed vectors;
+- the server is the real one: it ends the listening by its own ear (the speech is crates/vad's test recording).
 
-    docker compose -f compose.yaml -f tools/e2e.compose.yaml up -d
+    docker compose up -d
     uv run --with numpy --with websockets tools/e2e.py --token "$(docker compose exec -T server cat data/token)"
-        [--web https://127.0.0.1:52702] [--stations wss://127.0.0.1:52700/station] [--tts http://127.0.0.1:47711]
-        [--model-host host.docker.internal] [--model-port 47720]
+        [--web https://127.0.0.1:52702] [--stations wss://127.0.0.1:52700/station]
+        [--service-host host.docker.internal] [--service-port 47720]
 
-Needs a fresh server (it makes the first user) or the test user it made before, and the voice service reachable
-from here (--tts): it says the command. Exit code 0: the command was heard, answered by the model and spoken, and a
-station of another version is given the server's own client."""
+Needs a fresh server (it makes the first user) or the test user it made before. Exit code 0: the command was heard,
+answered by the model and spoken, each by the service chosen for it, and a station of another version is given the
+server's own client."""
 
 import argparse
 import asyncio
 import hashlib
 import http.cookiejar
 import json
+import os
 import ssl
 import struct
 import sys
@@ -36,7 +38,8 @@ USER, PASSWORD = 'e2e', 'correct horse battery staple'
 DEVICE = 'e2e-1'
 COMMAND = 'Привет, как дела?'
 ANSWER = 'Привет! Всё хорошо.'
-MODEL = 'scripted'
+MODELS = {'asr': 'e2e/hears', 'llm': 'e2e/answers', 'tts': 'e2e/speaks', 'embeddings': 'e2e/remembers'}
+VOICE = 'tone'
 
 TLS = ssl.create_default_context()
 TLS.check_hostname, TLS.verify_mode = False, ssl.CERT_NONE  # the server's own certificate: a real station pins it
@@ -66,30 +69,42 @@ class Web:
         return data if raw else json.loads(data)
 
 
-def model(port):
-    """A model that says ANSWER to anything: streamed for a request, whole for the warm-up and the notes."""
+def service(port):
+    """Every role's service on one port, as OpenRouter answers them -> what it was asked: [(path, model, the rest)].
+    The model says ANSWER to anything: streamed for a request, whole for the warm-up and the notes."""
     asked = []
+    t = np.arange(24000) / 24000
+    tone = (np.sin(2 * np.pi * 220 * t) * np.hanning(len(t)) * 8000).astype('<i2').tobytes()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
 
-        def do_POST(self):
-            req = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))))
-            asked.append(req)
+        def answer(self, body, ctype='application/json'):
             self.send_response(200)
+            self.send_header('Content-Type', ctype)
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            raw = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+            path = self.path.removeprefix('/v1')
+            if path == '/audio/transcriptions':
+                # multipart: the model's name is a field of it, the command a WAV file
+                asked.append((path, MODELS['asr'] if MODELS['asr'].encode() in raw else '?', b'RIFF' in raw))
+                return self.answer(json.dumps({'text': COMMAND}).encode())
+            req = json.loads(raw)
+            asked.append((path, req.get('model'), req))
+            if path == '/audio/speech':
+                return self.answer(tone, 'audio/pcm;rate=24000;channels=1')
+            if path == '/embeddings':
+                data = [{'index': i, 'embedding': [1.0, 0.0, 0.0]} for i in range(len(req['input']))]
+                return self.answer(json.dumps({'data': data}).encode())
             if not req.get('stream'):
-                body = json.dumps(
-                    {
-                        'choices': [
-                            {'message': {'role': 'assistant', 'content': '{"add": [], "update": [], "remove": []}'}}
-                        ]
-                    }
-                ).encode()
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Content-Length', str(len(body)))
-                self.end_headers()
-                return self.wfile.write(body)
+                note = {'role': 'assistant', 'content': '{"add": [], "update": [], "remove": []}'}
+                return self.answer(json.dumps({'choices': [{'message': note}]}).encode())
+            self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
             self.end_headers()
             for piece in (ANSWER[:8], ANSWER[8:]):
@@ -101,27 +116,13 @@ def model(port):
     return asked
 
 
-def resample(x, rate, to=16000):
-    """Mono samples at `rate` -> at `to`: a windowed-sinc low-pass under the new Nyquist, then read off by position."""
-    if rate == to:
-        return x
-    k = np.arange(-64, 65)
-    cut = 0.45 * to / rate
-    taps = 2 * cut * np.sinc(2 * cut * k) * np.hamming(len(k))
-    y = np.convolve(x, taps / taps.sum(), 'same')
-    return np.interp(np.arange(0, len(y), rate / to), np.arange(len(y)), y)
-
-
-def spoken(tts, text):
-    """`text` in the voice service's voice, as a station's microphone has speech: 16 kHz s16le at about -60 dBFS."""
-    req = urllib.request.Request(
-        tts + '/v1/audio/speech',
-        json.dumps({'input': text, 'response_format': 'pcm'}).encode(),
-        {'Content-Type': 'application/json'},
-    )
-    with urllib.request.urlopen(req, timeout=120) as r:
-        rate, pcm = int(r.headers.get('X-Sample-Rate', 24000)), r.read()
-    x = resample(np.frombuffer(pcm, '<i2').astype(np.float64), rate)
+def spoken():
+    """Speech as a station's microphone has it: 16 kHz s16le at about -60 dBFS. The recording crates/vad is tested
+    on, its first phrase with the quiet around it."""
+    with open(os.path.join(os.path.dirname(__file__), '..', 'crates', 'vad', 'tests', 'vad.vec'), 'rb') as f:
+        v = f.read()
+    n = struct.unpack('<I', v[4:8])[0]
+    x = np.frombuffer(v[12 : 12 + 4 * n], '<f4').astype(np.float64)[4800:27200] * 32768
     x *= 10 ** (-60 / 20) * 32768 / (np.sqrt((x**2).mean()) + 1e-9)
     return x.astype('<i2')
 
@@ -265,10 +266,9 @@ async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--web', default='https://127.0.0.1:52702')
     ap.add_argument('--stations', default='wss://127.0.0.1:52700/station')
-    ap.add_argument('--tts', default='http://127.0.0.1:47711')
     ap.add_argument('--token', required=True)
-    ap.add_argument('--model-host', default='host.docker.internal', help='this machine as the server reaches it')
-    ap.add_argument('--model-port', type=int, default=47720)
+    ap.add_argument('--service-host', default='host.docker.internal', help='this machine as the server reaches it')
+    ap.add_argument('--service-port', type=int, default=47720)
     a = ap.parse_args()
     failed = []
 
@@ -284,20 +284,28 @@ async def main():
     )
     version = web.call('GET', '/api/info')['version']
 
-    asked = model(a.model_port)
-    url = f'http://{a.model_host}:{a.model_port}/v1'
-    providers = web.call('GET', '/api/providers')
-    mine = next((p for p in providers['items'] if p['kind'] == 'llm' and p['url'] == url), None) or web.call(
-        'POST', '/api/providers', {'kind': 'llm', 'name': 'e2e', 'url': url, 'model': MODEL}
+    asked = service(a.service_port)
+    url = f'http://{a.service_host}:{a.service_port}/v1'
+    connections = web.call('GET', '/api/providers')['connections']
+    check(
+        any(c['openrouter'] and not c['key_set'] for c in connections) or len(connections) > 1,
+        'OpenRouter waits for its key from the first start',
     )
-    web.call('PATCH', '/api/providers/in-use', {'llm': mine['id']})
-    for kind in ('asr', 'tts'):
-        check(
-            web.call('GET', '/api/providers')['in_use'][kind] is not None,
-            f'a {kind} service is in use from the first start',
+    mine = next((c for c in connections if c['url'] == url), None) or web.call(
+        'POST', '/api/connections', {'name': 'e2e', 'url': url}
+    )
+    for role, model in MODELS.items():
+        chosen = web.call(
+            'PUT',
+            f'/api/roles/{role}',
+            {'connection': mine['id'], 'model': model, **({'voice': VOICE} if role == 'tts' else {})},
         )
+    check(
+        all(chosen['roles'][role]['model'] == model for role, model in MODELS.items()),
+        'a model is chosen for every role',
+    )
 
-    speech = spoken(a.tts, COMMAND)
+    speech = spoken()
     station = Station(a.stations, a.token, version)
     await station.connect()
     check(
@@ -319,11 +327,24 @@ async def main():
         heard = ''.join(c for c in exchange['text'].lower() if c.isalpha() or c == ' ')
         check('привет' in heard and 'дела' in heard, f'recognition heard the command: {exchange["text"]!r}')
         check(
-            exchange['answer'] == ANSWER and exchange.get('model') == MODEL,
+            exchange['answer'] == ANSWER and exchange.get('model') == MODELS['llm'],
             f'the model in use answered: {exchange["answer"]!r} by {exchange.get("model")!r}',
         )
-        check(any(r.get('stream') for r in asked), 'the request reached the model')
-    await asyncio.sleep(1.0)
+        check(('/audio/transcriptions', MODELS['asr'], True) in asked, 'the command went to recognition as a WAV file')
+        check(
+            any(p == '/chat/completions' and r.get('stream') for p, _, r in asked if isinstance(r, dict)),
+            'the request reached the model',
+        )
+        said = [r for p, m, r in asked if p == '/audio/speech' and m == MODELS['tts']]
+        check(
+            any(r.get('voice') == VOICE and r.get('response_format') == 'pcm' and 'speed' not in r for r in said),
+            'the answer went to the voice chosen, with no speed of its own',
+        )
+    for _ in range(20):
+        if any(p == '/embeddings' and m == MODELS['embeddings'] for p, m, _ in asked):
+            break
+        await asyncio.sleep(0.5)
+    check(any(p == '/embeddings' for p, _, _ in asked), 'the exchange got its vector for the memory')
     voice = [s for s in station.streams.values() if s['rate'] == 24000 and len(s['pcm']) > 24000]
     check(
         bool(voice),

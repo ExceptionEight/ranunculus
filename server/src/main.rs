@@ -51,6 +51,20 @@ pub fn http() -> reqwest::ClientBuilder {
     reqwest::Client::builder()
 }
 
+/// An error with what is under it, each said once: a client's own words often stop at «error sending request».
+pub fn why(e: &dyn std::error::Error) -> String {
+    let mut said = e.to_string();
+    let mut under = e.source();
+    while let Some(x) = under {
+        let more = x.to_string();
+        if !said.contains(&more) {
+            said = format!("{said}: {more}");
+        }
+        under = x.source();
+    }
+    said
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(|s| s.as_str()) {
@@ -221,7 +235,17 @@ async fn start(cfg: config::Config) -> Result<(), String> {
     text::set_tz(text::system_tz());
     let me = identity::ensure(&cfg)?;
     let r = &cfg.services;
-    let mem = memory::Memory::open(&cfg.at("memory.db"), (!r.embeddings.is_empty()).then_some(r.embeddings.as_str()))?;
+    let old = r.old();
+    if !old.is_empty() {
+        session::log(
+            "server",
+            format!(
+                "server.toml: [services] {} are not read any more: the models are chosen in the web UI, in the settings",
+                old.join(", ")
+            ),
+        );
+    }
+    let mem = memory::Memory::open(&cfg.at("memory.db"))?;
     let brain = Arc::new(brain::Brain::new(Some(mem.clone()), &cfg.at("prompt.md"))?);
     let store = open_store(&cfg)?;
     // what was said and heard is private: the recordings and the user's sounds as the databases
@@ -239,7 +263,7 @@ async fn start(cfg: config::Config) -> Result<(), String> {
             mem.facts().len()
         ),
     );
-    let providers = providers::Providers::load(store.clone(), r);
+    let providers = providers::Providers::load(store.clone(), Some(mem.clone()));
     let fillers = fillers::Fillers::new(&cfg.at("fillers"));
     fillers.prepare(&providers.services());
     brain.set_profile(settings.profile());
@@ -275,7 +299,7 @@ async fn start(cfg: config::Config) -> Result<(), String> {
             });
         }
         Some(_) => {}
-        None => session::log("server", "no model to answer yet: add one in the web UI, in the settings"),
+        None => session::log("server", "no model to answer yet: choose one in the web UI, in the settings"),
     }
     if cfg.memory.notes {
         tokio::spawn(notes::run(shared.clone()));

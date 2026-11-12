@@ -5,6 +5,8 @@
 //! triggers (negatives) and real wakes in this room (positives).
 //! Nothing is refused here: it only records. Recognition's text alone is no second check: of real wakes it confirms
 //! less than half (the word comes out as «Развод», «Красота», «Разок»).
+//! The word's window goes to recognition only when recognition is at home: what was said before the word is not for
+//! a service in the internet (the command after it is — that is what the user chose it for).
 //! Kept until the user deletes them.
 use crate::events;
 use crate::services::{wav, Services};
@@ -81,8 +83,9 @@ pub fn save(store: &Arc<Store>, dir: &str, device: &str, rec: Recording) -> Savi
 }
 
 impl Saving {
-    /// The command recognised (or silence: ""), for this wake; then the wake's window recognised by `services`. After the
-    /// command, not before it: the recognition service does one at a time, and the command would wait for the window.
+    /// The command recognised (or silence: ""), for this wake; then the wake's window recognised by `services`, if
+    /// recognition is at home. After the command, not before it: a recognition service at home does one at a time,
+    /// and the command would wait for the window.
     pub fn heard(self, text: &str, services: Services) {
         let Saving { task, store, device } = self;
         let text = text.to_string();
@@ -91,12 +94,12 @@ impl Saving {
             if store.set_wake(id, "heard", Some(&text)).unwrap_or(false) {
                 changed(&store, id);
             }
-            if window.is_empty() {
+            if window.is_empty() || services.asr.as_ref().is_none_or(|e| crate::providers::cloud(&e.url)) {
                 return;
             }
             let x: Vec<f32> = window.iter().map(|&v| v as f32 / 32768.0).collect();
             match services.transcribe(&x).await {
-                Ok((t, _)) => {
+                Ok(t) => {
                     let _ = store.set_wake(id, "heard_window", Some(&t));
                     changed(&store, id);
                 }

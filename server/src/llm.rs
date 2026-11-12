@@ -12,7 +12,7 @@ pub struct Llm {
     pub model: String,
     key: String,
     extra: Map<String, Value>, // the provider's own request fields (OpenRouter: reasoning, provider)
-    cloud: bool,               // https: in the internet (the tests make a model on 127.0.0.1 one)
+    cloud: bool,               // away from the house: providers::cloud (the tests make a model on 127.0.0.1 one)
 }
 
 #[derive(Debug, Clone, Default)]
@@ -104,7 +104,7 @@ async fn until(cancelled: &impl Fn() -> bool) {
 impl Llm {
     pub fn new(url: &str, model: &str, key: &str, extra: Map<String, Value>) -> Llm {
         let http = crate::http().connect_timeout(Duration::from_secs(10)).build().expect("an HTTP client");
-        Llm { http, url: url.into(), model: model.into(), key: key.into(), extra, cloud: url.starts_with("https://") }
+        Llm { http, url: url.into(), model: model.into(), key: key.into(), extra, cloud: crate::providers::cloud(url) }
     }
 
     /// A provider in the internet (https), not one at home.
@@ -383,8 +383,10 @@ mod tests {
     }
 
     #[test]
-    fn in_the_internet_is_https() {
+    fn in_the_internet_by_its_address() {
         let a = Llm::new("https://openrouter.ai/api/v1/chat/completions", "m", "k", Map::new());
         assert!(a.cloud() && !Llm::new("http://127.0.0.1:52521/v1/chat/completions", "m", "", Map::new()).cloud());
+        assert!(!Llm::new("https://gpu.lan/v1/chat/completions", "m", "", Map::new()).cloud());
+        assert!(Llm::new("http://my-vps.example.com:8000/v1/chat/completions", "m", "", Map::new()).cloud());
     }
 }

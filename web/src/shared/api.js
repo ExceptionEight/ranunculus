@@ -75,17 +75,33 @@ export const api = {
   addAlarm: (a) => call('POST', '/api/alarms', a),
   changeAlarm: (id, patch) => call('PATCH', `/api/alarms/${id}`, patch),
   deleteAlarm: (id) => call('DELETE', `/api/alarms/${id}`),
+  /** {connections: [{id, name, url, key_set, key_tail, cloud, openrouter}], roles: {asr | llm | tts | embeddings:
+   * {connection, model, voice, speed, extra, cloud} | null}} */
   providers: () => call('GET', '/api/providers'),
-  addProvider: (p) => call('POST', '/api/providers', p),
-  changeProvider: (id, patch) => call('PATCH', `/api/providers/${id}`, patch),
-  deleteProvider: (id) => call('DELETE', `/api/providers/${id}`),
-  chooseProviders: (d) => call('PATCH', '/api/providers/in-use', d),
-  models: (q) => call('POST', '/api/providers/models', q),
-  /** a model answers ({ok, text, seconds}); recognition hears ({text, expected}); a voice → a WAV (Blob) */
-  async checkProvider(id, kind) {
-    if (kind !== 'tts') return call('POST', `/api/providers/${id}/check`)
-    const r = await fetch(`/api/providers/${id}/check`, { method: 'POST' })
-    if (signedOutBy(r.status, '/api/providers')) onSignedOut()
+  addConnection: (c) => call('POST', '/api/connections', c),
+  changeConnection: (id, patch) => call('PATCH', `/api/connections/${id}`, patch),
+  deleteConnection: (id) => call('DELETE', `/api/connections/${id}`),
+  /** a connection's models for a role: {items: [{id, name, in?, out?, tools?, voices?}]} */
+  models: (id, role) => call('POST', `/api/connections/${id}/models`, { role }),
+  setRole: (role, r) => call('PUT', `/api/roles/${role}`, r),
+  clearRole: (role) => call('DELETE', `/api/roles/${role}`),
+  /** The role as it is in use, or — `as`: {connection, model, …} — as it would be. A model answers ({text, seconds});
+   * recognition hears ({text, expected}); the memory gets vectors ({size, seconds}); a voice → a WAV (Blob). */
+  async checkRole(role, as) {
+    const path = `/api/roles/${role}/check`
+    if (role !== 'tts') return call('POST', path, as)
+    const opts = { method: 'POST', headers: {} }
+    if (as) {
+      opts.headers['Content-Type'] = 'application/json'
+      opts.body = JSON.stringify(as)
+    }
+    let r
+    try {
+      r = await fetch(path, opts)
+    } catch {
+      throw new ApiError(0, 'Сервер не отвечает. Проверьте, что он запущен.')
+    }
+    if (signedOutBy(r.status, path)) onSignedOut()
     if (!r.ok) {
       const j = await r.json().catch(() => ({}))
       throw new ApiError(r.status, j.error || `Ошибка ${r.status}`)

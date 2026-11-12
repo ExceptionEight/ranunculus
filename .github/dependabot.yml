@@ -27,7 +27,7 @@ updates:
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: pip
-    directories: [/services/asr, /services/embeddings, /services/music, /services/tts]
+    directories: [/services/music]
     schedule:
       interval: weekly
     groups:
@@ -37,7 +37,7 @@ updates:
 
   # the Rust image goes with rust-toolchain.toml: tools/version.sh fails until both say the same
   - package-ecosystem: docker
-    directories: [/server, /services/asr, /services/embeddings, /services/music, /services/pages, /services/tts]
+    directories: [/server, /services/music, /services/pages]
     schedule:
       interval: weekly
 
