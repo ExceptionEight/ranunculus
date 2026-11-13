@@ -433,8 +433,8 @@ fn handle(d: Down, hw: &mut Hw) -> Option<Up> {
         Down::PanelLook(l) => {
             let rgb = |s: &str, d: [f64; 3]| ranunculus_proto::hex_rgb(s).map(|c| c.map(|x| x as f64)).unwrap_or(d);
             let look = panel::states::Look {
-                color: rgb(&l.color, [255.0, 48.0, 0.0]),
-                logo_color: rgb(&l.logo_color, [255.0, 48.0, 0.0]),
+                color: rgb(&l.color, panel::states::Look::default().color),
+                logo_color: rgb(&l.logo_color, panel::states::Look::default().logo_color),
                 logo: l.logo as f64,
                 gain: l.gain as f64,
                 gamma: (l.gamma as f64).max(0.2),

@@ -610,8 +610,8 @@ pub async fn run<S>(
 fn look() -> Look {
     let hour = chrono::Timelike::hour(&chrono::Utc::now().with_timezone(&tz()));
     Look {
-        color: "#FF3000".into(),
-        logo_color: "#FF3000".into(),
+        color: "#FF006E".into(),
+        logo_color: "#FF006E".into(),
         logo: 0.85,
         gain: 1.0,
         gamma: 1.5,

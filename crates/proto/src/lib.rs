@@ -139,7 +139,7 @@ pub struct Look {
     pub night: bool,
 }
 
-/// «#FF3000» → [255, 48, 0]; None if malformed.
+/// «#FF006E» → [255, 0, 110]; None if malformed.
 pub fn hex_rgb(s: &str) -> Option<[u8; 3]> {
     let h = s.strip_prefix('#').unwrap_or(s);
     if h.len() != 6 {
@@ -269,9 +269,9 @@ mod tests {
             Up::Wake { p: 0.5, barge: true, t_us: 7, pre: 32000, button: false }.to_json(),
             r#"{"t":"wake","p":0.5,"barge":true,"t_us":7,"pre":32000,"button":false}"#
         );
-        let pl: Down = serde_json::from_str(r##"{"t":"panel_look","color":"#FF3000","logo_color":"#FF3000","logo":0.85,"gain":1,"gamma":1.5,"backlight":70,"react":0.5,"smooth":0.6,"speed":1,"music_react":0.7,"music_lag":0,"night":false}"##).unwrap();
+        let pl: Down = serde_json::from_str(r##"{"t":"panel_look","color":"#FF006E","logo_color":"#FF006E","logo":0.85,"gain":1,"gamma":1.5,"backlight":70,"react":0.5,"smooth":0.6,"speed":1,"music_react":0.7,"music_lag":0,"night":false}"##).unwrap();
         assert!(matches!(pl, Down::PanelLook(Look { backlight, .. }) if backlight == 70.0));
-        assert_eq!(hex_rgb("#FF3000"), Some([255, 48, 0]));
+        assert_eq!(hex_rgb("#FF006E"), Some([255, 0, 110]));
         assert_eq!(hex_rgb("#FF30"), None);
         assert_eq!(
             serde_json::from_str::<Down>(r#"{"t":"panel","state":"listen"}"#).unwrap(),

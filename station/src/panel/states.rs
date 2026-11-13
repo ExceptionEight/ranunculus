@@ -186,8 +186,8 @@ pub struct Look {
 impl Default for Look {
     fn default() -> Look {
         Look {
-            color: [255.0, 48.0, 0.0],
-            logo_color: [255.0, 48.0, 0.0],
+            color: [255.0, 0.0, 110.0],
+            logo_color: [255.0, 0.0, 110.0],
             logo: 0.85,
             gain: 1.0,
             gamma: 1.5,
