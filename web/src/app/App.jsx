@@ -89,7 +89,7 @@ function Sidebar() {
         )}
         {user && (
           <div className="side-foot">
-            <Link to="/settings/account" className="me">
+            <Link to="/settings/account" className="side-me">
               <span className="avatar" aria-hidden="true">
                 {[...user.name][0]}
               </span>
