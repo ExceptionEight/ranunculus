@@ -1,6 +1,6 @@
 //! Buttons and the microphones' switch, from the kernel's input devices:
 //! - `event0` «gpio-keys»: a key and the switch `SW_MUTE_DEVICE` (the microphones' hardware switch);
-//! - `event1` «midi_touch»: the touch buttons (the centre one: hold — call, tap — pause/resume; volume ±).
+//! - `event1` «midi_touch»: the touch buttons (the centre one: hold — call, tap — pause/resume; volume ±: a tap).
 //!
 //! Key codes are named by `KEYS`; an unknown one goes up as `key<code>` (`ranunculus-station input-dump` shows them
 //! live).
@@ -9,7 +9,8 @@
 //! The three touch keys (−, centre, +) are a ring: a finger sliding over it presses them one after another, the next
 //! 15–30 ms after the last let go. `Gestures` tells that slide — `swipe right`
 //! (− → +) or `swipe left` (+ → −); in the original firmware it switches tracks — from a tap: a tap is only sent once
-//! GAP has passed with no other key.
+//! GAP has passed with no other key. So a slide that starts on a volume key never moves the volume. On the ring only
+//! the centre has a hold; − and + held long are still one tap, when the finger lets go.
 use std::fs::File;
 use std::io::Read;
 use std::os::fd::AsRawFd;
@@ -145,11 +146,6 @@ impl Gestures {
                 self.down.retain(|d| d.0 != code);
                 self.down.push((code, now, false));
                 self.last_up = None;
-                // the volume keys act at once (waiting for the end of the gesture felt like a lag): `press`, and the
-                // station undoes it if the gesture turns out to be a slide
-                if code != 582 {
-                    return vec![Input::Button { name: key_name(code), action: "press" }];
-                }
                 vec![]
             }
             0 => {
@@ -172,8 +168,9 @@ impl Gestures {
     /// Call while something is pending (`busy()`): a hold when its time comes, the end of a gesture after GAP.
     pub fn poll(&mut self, now: Instant) -> Vec<Input> {
         if !self.down.is_empty() {
-            // a hold only for a single key alone (a slide that stops on a key is still a slide)
-            if self.down.len() == 1 && self.seq.len() == 1 && !self.down[0].2 && now - self.down[0].1 >= HOLD {
+            // a hold only for the centre alone (a slide that stops on it is still a slide; − and + have none)
+            let d = &self.down[0];
+            if self.down.len() == 1 && self.seq.len() == 1 && d.0 == RING[1] && !d.2 && now - d.1 >= HOLD {
                 self.down[0].2 = true;
                 return vec![Input::Button { name: key_name(self.down[0].0), action: "hold" }];
             }
@@ -315,20 +312,16 @@ mod tests {
         let t0 = Instant::now();
         let ms = |m: u64| t0 + Duration::from_millis(m);
         let b = |n: &str, a: &'static str| Input::Button { name: n.into(), action: a };
-        // a tap of − (as recorded: 258 ms down): `press` at once, the `tap` once GAP has passed
+        // a tap of − (as recorded: 258 ms down): nothing while the finger is on it, the `tap` once GAP has passed
         let mut g = Gestures::default();
-        assert_eq!(g.key(114, 1, ms(0)), vec![b("volume_down", "press")]);
-        g.key(114, 0, ms(258));
+        assert!(g.key(114, 1, ms(0)).is_empty());
+        assert!(g.key(114, 0, ms(258)).is_empty());
         assert!(g.poll(ms(300)).is_empty(), "not yet: another key may follow");
         assert_eq!(g.poll(ms(400)), vec![b("volume_down", "tap")]);
         // the recorded slide − → centre → +: right
         let mut g = Gestures::default();
         for (c, v, t) in [(114, 1, 0), (114, 0, 282), (582, 1, 301), (582, 0, 459), (115, 1, 478), (115, 0, 819)] {
-            let out = g.key(c, v, ms(t));
-            assert!(
-                out.iter().all(|i| matches!(i, Input::Button { action: "press", .. })),
-                "only presses on the way: {out:?}"
-            );
+            assert!(g.key(c, v, ms(t)).is_empty(), "nothing on the way: the volume stays");
             assert!(g.poll(ms(t)).is_empty());
         }
         assert_eq!(g.poll(ms(1000)), vec![b("swipe", "right")]);
@@ -352,9 +345,17 @@ mod tests {
         assert_eq!(g.poll(ms(700)), vec![b("activate", "hold")]);
         assert_eq!(g.key(582, 0, ms(1500)), vec![b("activate", "release")]);
         assert!(g.poll(ms(2000)).is_empty());
+        // + held long: no hold, no repeats, one tap when the finger lets go
+        let mut g = Gestures::default();
+        g.key(115, 1, ms(0));
+        for t in (100..3000).step_by(100) {
+            assert!(g.poll(ms(t)).is_empty(), "nothing while held ({t} ms)");
+        }
+        assert!(g.key(115, 0, ms(3000)).is_empty());
+        assert_eq!(g.poll(ms(3200)), vec![b("volume_up", "tap")]);
         // two taps of + far apart are two taps
         let mut g = Gestures::default();
-        assert_eq!(g.key(115, 1, ms(0)), vec![b("volume_up", "press")]);
+        assert!(g.key(115, 1, ms(0)).is_empty());
         g.key(115, 0, ms(150));
         assert_eq!(g.poll(ms(400)), vec![b("volume_up", "tap")]);
         g.key(115, 1, ms(1000));

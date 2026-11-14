@@ -46,10 +46,9 @@ struct Ear {
 }
 
 /// The volume buttons are the client's (the firmware's handling of buttons is switched off, setup.rs): a tap is ± half
-/// a level (the knob 0..255 in 20 halves of 12.75, as the firmware moved it), holding repeats it. Slides over the ring
-/// come as `swipe` (input.rs) and go to the server (tracks).
+/// a level (the knob 0..255 in 20 halves of 12.75, as the firmware moved it), when the finger lets go — holding does
+/// no more than a tap. Slides over the ring come as `swipe` (input.rs) and go to the server (tracks).
 const HALF: f64 = 12.75;
-const REPEAT: Duration = Duration::from_millis(200);
 
 fn volume_step(knob: &Knob, dir: i32) -> Option<u8> {
     let cur = knob.get().ok()? as f64;
@@ -191,9 +190,6 @@ pub async fn session(cfg: &Config, hw: &mut Hw) -> End {
     let mut last_rx = Instant::now();
     let mut ping = tokio::time::interval(PING);
     let mut n_ping = 0u64;
-    let mut tick = tokio::time::interval(Duration::from_millis(50));
-    let mut held: Option<(i32, Instant)> = None; // a volume button held: (direction, next repeat)
-    let mut before: Option<u8> = None; // the volume before this gesture's presses (a slide puts it back)
     let mut level: Option<u8> = None; // the knob as last seen (its first report is no change)
     let end = loop {
         tokio::select! {
@@ -314,30 +310,10 @@ pub async fn session(cfg: &Config, hw: &mut Hw) -> End {
                 if let Some(Input::Button { name, action }) = &i {
                     let dir = match name.as_str() { "volume_up" => 1, "volume_down" => -1, _ => 0 };
                     if dir != 0 {
-                        match *action {
-                            "press" => {
-                                if let Some(k) = hw.knob.as_ref() {
-                                    if before.is_none() {
-                                        before = k.get().ok();
-                                    }
-                                    volume_step(k, dir);
-                                }
-                            }
-                            "hold" => held = Some((dir, Instant::now() + REPEAT)),
-                            _ => {
-                                // tap / release: the gesture is over and the steps stay
-                                held = None;
-                                before = None;
-                            }
+                        if let (&"tap", Some(k)) = (action, hw.knob.as_ref()) {
+                            volume_step(k, dir);
                         }
                         continue;
-                    }
-                    if name == "swipe" {
-                        // a slide passed over a volume key: undo what its press did
-                        if let (Some(b), Some(k)) = (before.take(), hw.knob.as_ref()) {
-                            let _ = k.set(b);
-                        }
-                        held = None;
                     }
                 }
                 let up = match i {
@@ -361,17 +337,6 @@ pub async fn session(cfg: &Config, hw: &mut Hw) -> End {
                 let level = l;
                 if let Err(e) = tx.send(Message::Text(Up::Volume { level, req: None }.to_json().into())).await {
                     break End::Lost(format!("write: {e}"));
-                }
-            }
-            _ = tick.tick() => {
-                let now = Instant::now();
-                if let Some((dir, next)) = held {
-                    if now >= next {
-                        if let Some(k) = hw.knob.as_ref() {
-                            volume_step(k, dir);
-                        }
-                        held = Some((dir, now + REPEAT));
-                    }
                 }
             }
             _ = ping.tick() => {
