@@ -7,7 +7,7 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM rust:1.99.1-slim AS build
+FROM rust:1.100.0-slim AS build
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates crates
@@ -17,7 +17,7 @@ RUN cargo build --release --locked -p ranunculus-server
 
 # the client for the stations (aarch64, static), of this server's version: a station of another one is given it.
 # On an arm64 machine the compiler at hand is the one for it; elsewhere a cross compiler is added
-FROM rust:1.99.1-slim AS station
+FROM rust:1.100.0-slim AS station
 RUN if [ "$(dpkg --print-architecture)" != arm64 ]; then \
         apt-get update && apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
         && rm -rf /var/lib/apt/lists/*; \
