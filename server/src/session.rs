@@ -196,6 +196,7 @@ pub struct Station {
     out: mpsc::UnboundedSender<Message>,
     ids: Arc<AtomicU32>,
     waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<bool>>>>,
+    voice: Arc<Mutex<HashSet<u32>>>,
     reqs: Arc<Mutex<HashMap<u32, oneshot::Sender<Result<u8, String>>>>>,
     panel_now: Arc<Mutex<String>>,
     self_name: Arc<AtomicBool>,
@@ -218,6 +219,7 @@ impl Station {
                 out,
                 ids: Arc::new(AtomicU32::new(1)),
                 waiters: Default::default(),
+                voice: Default::default(),
                 reqs: Default::default(),
                 panel_now: Default::default(),
                 self_name: Default::default(),
@@ -299,9 +301,25 @@ impl Station {
     }
 
     fn done(&self, id: u32, killed: bool) {
+        self.voice.lock().unwrap().remove(&id);
         if let Some(w) = self.waiters.lock().unwrap().remove(&id) {
             let _ = w.send(killed);
         }
+    }
+
+    /// Cuts every voice stream playing now (a barge-in: before the wake beep opens its own).
+    pub fn cut(&self) {
+        let ids: Vec<u32> = self.voice.lock().unwrap().drain().collect();
+        for id in ids {
+            self.kill(id);
+        }
+    }
+
+    fn cut_one(&self, id: u32) {
+        if self.voice.lock().unwrap().remove(&id) {
+            self.kill(id);
+        }
+        self.waiters.lock().unwrap().remove(&id);
     }
 
     fn answer(&self, req: u32, r: Result<u8, String>) {
@@ -371,36 +389,58 @@ impl Station {
     }
 
     /// Speech (s16le mono) as one stream, in 0.1-s blocks LEAD s ahead of real time, so a stop cuts it at once;
-    /// returns when the station has played it (true) or it was cut (false).
+    /// returns when the station has played it (true) or it was cut / timed out (false).
     pub async fn play(&self, pcm: &[u8], rate: u32, g: Option<&Gen>) -> bool {
+        if g.is_some_and(|g| g.cancelled()) {
+            return false;
+        }
         let (id, mut rx) = self.open(rate, 1, None, None);
+        self.voice.lock().unwrap().insert(id);
         let block = (rate as usize / 10) * 2;
         let t0 = Instant::now();
         let mut sent = 0usize;
         for b in pcm.chunks(block) {
             if g.is_some_and(|g| g.cancelled()) {
-                self.kill(id);
+                self.cut_one(id);
                 return false;
             }
             let ahead = sent as f64 / (2.0 * rate as f64) - t0.elapsed().as_secs_f64();
             if ahead > LEAD {
                 tokio::time::sleep(Duration::from_secs_f64(ahead - LEAD)).await;
             }
+            if g.is_some_and(|g| g.cancelled()) {
+                self.cut_one(id);
+                return false;
+            }
             if !self.pcm(id, b.to_vec()) {
+                self.voice.lock().unwrap().remove(&id);
+                self.waiters.lock().unwrap().remove(&id);
                 return false;
             }
             sent += b.len();
         }
+        if g.is_some_and(|g| g.cancelled()) {
+            self.cut_one(id);
+            return false;
+        }
         self.end(id);
+        let total = pcm.len() as f64 / (2.0 * rate as f64);
+        let left = (total - t0.elapsed().as_secs_f64()).max(0.0);
+        let deadline = Instant::now() + Duration::from_secs_f64(left + 3.0);
         loop {
             tokio::select! {
-                r = &mut rx => return matches!(r, Ok(false)),
+                r = &mut rx => {
+                    self.voice.lock().unwrap().remove(&id);
+                    return matches!(r, Ok(false));
+                }
                 _ = tokio::time::sleep(Duration::from_millis(20)) => {
-                    if g.is_some_and(|g| g.cancelled()) {
-                        self.kill(id);
+                    if g.is_some_and(|g| g.cancelled()) || Instant::now() >= deadline {
+                        self.cut_one(id);
                         return false;
                     }
                     if self.out.is_closed() {
+                        self.voice.lock().unwrap().remove(&id);
+                        self.waiters.lock().unwrap().remove(&id);
                         return false;
                     }
                 }
@@ -444,6 +484,7 @@ pub async fn run<S>(
         out: out_tx,
         ids: Arc::new(AtomicU32::new(1)),
         waiters: Default::default(),
+        voice: Default::default(),
         reqs: Default::default(),
         panel_now: Default::default(),
         self_name: Default::default(),
@@ -524,11 +565,13 @@ pub async fn run<S>(
                         ),
                     );
                     gen.fetch_add(1, Ordering::SeqCst); // whatever runs stops: a barge-in
+                    station.cut();
                     station.set_self_name(false);
                     t_wake = now_s();
                     station.panel("listen");
                     let f = station.clone();
-                    tokio::spawn(async move { f.play(&beep(24000), 24000, None).await });
+                    let g = Gen { cur: gen.clone(), mine: gen.load(Ordering::SeqCst) };
+                    tokio::spawn(async move { f.play(&beep(24000), 24000, Some(&g)).await });
                     listener = Some(Listener::new(vad.take().unwrap_or_else(Silero::bundled)));
                     hearing = Some(InDialog::new(&shared, &device, &player)); // the music ducked from here on
                 }
@@ -898,6 +941,7 @@ mod tests {
                 out,
                 ids: Arc::new(AtomicU32::new(1)),
                 waiters: Default::default(),
+                voice: Default::default(),
                 reqs: Default::default(),
                 panel_now: Default::default(),
                 self_name: Default::default(),
@@ -935,5 +979,87 @@ mod tests {
         assert_eq!(f.panel_state(), "listen");
         f.panel_if("listen", &["listen"]);
         assert_eq!(sent(&mut rx), ["speak", "music", "listen"], "each change once, in order");
+    }
+
+    async fn next_down(rx: &mut mpsc::UnboundedReceiver<Message>) -> Down {
+        loop {
+            match tokio::time::timeout(Duration::from_secs(2), rx.recv()).await.unwrap().unwrap() {
+                Message::Text(t) => return serde_json::from_str(&t).unwrap(),
+                Message::Binary(_) => continue,
+                other => panic!("unexpected ws message: {other:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn barge_in_cuts_before_the_beep_opens() {
+        let (f, mut rx) = station();
+        let gen = Arc::new(AtomicU64::new(1));
+        let g1 = Gen { cur: gen.clone(), mine: 1 };
+        let h1 = tokio::spawn({
+            let f = f.clone();
+            async move { f.play(&vec![0u8; 24000], 24000, Some(&g1)).await }
+        });
+        assert!(matches!(next_down(&mut rx).await, Down::Play { id: 1, .. }));
+
+        // a barge-in: cut the answer synchronously before spawning the wake beep
+        gen.fetch_add(1, Ordering::SeqCst);
+        f.cut();
+        let g2 = Gen { cur: gen.clone(), mine: gen.load(Ordering::SeqCst) };
+        let h2 = tokio::spawn({
+            let f = f.clone();
+            async move { f.play(&beep(24000), 24000, Some(&g2)).await }
+        });
+
+        let mut seen = vec![];
+        loop {
+            match next_down(&mut rx).await {
+                Down::Kill { id } => seen.push(format!("kill:{id}")),
+                Down::Play { id, .. } => {
+                    seen.push(format!("play:{id}"));
+                    if id == 2 {
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(seen, ["kill:1", "play:2"]);
+        assert!(!h1.await.unwrap(), "cut answer returns false");
+
+        // the beep itself is cancellable on the next barge-in, and id 1 is never killed twice
+        gen.fetch_add(1, Ordering::SeqCst);
+        f.cut();
+        assert!(!h2.await.unwrap(), "cut beep returns false");
+        let mut kills = vec![];
+        while let Ok(m) = rx.try_recv() {
+            if let Message::Text(t) = m {
+                if let Ok(Down::Kill { id }) = serde_json::from_str::<Down>(&t) {
+                    kills.push(id);
+                }
+            }
+        }
+        assert_eq!(kills, [2]);
+    }
+
+    #[tokio::test]
+    async fn play_times_out_when_station_never_reports_done() {
+        let (f, mut rx) = station();
+        let played = f.play(&vec![0u8; 4800], 24000, None).await;
+        assert!(!played, "never-ending stream times out as cut");
+        let mut cmds = vec![];
+        while let Ok(m) = rx.try_recv() {
+            if let Message::Text(t) = m {
+                match serde_json::from_str::<Down>(&t).unwrap() {
+                    Down::Play { id, .. } => cmds.push(format!("play:{id}")),
+                    Down::End { id } => cmds.push(format!("end:{id}")),
+                    Down::Kill { id } => cmds.push(format!("kill:{id}")),
+                    _ => {}
+                }
+            }
+        }
+        assert_eq!(cmds, ["play:1", "end:1", "kill:1"]);
+        assert!(f.waiters.lock().unwrap().is_empty());
+        assert!(f.voice.lock().unwrap().is_empty());
     }
 }

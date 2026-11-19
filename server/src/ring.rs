@@ -388,6 +388,7 @@ async fn stream(f: &Station, l: &mut Looper, r: &Ring) -> End {
         sent += block;
     }
     f.end(id);
+    let deadline = Instant::now() + Duration::from_secs_f64(LEAD + 3.0);
     loop {
         tokio::select! {
             d = &mut rx => return if d.is_ok() { End::Played } else { End::Lost },
@@ -398,6 +399,10 @@ async fn stream(f: &Station, l: &mut Looper, r: &Ring) -> End {
                 }
                 if f.gone() {
                     return End::Lost;
+                }
+                if Instant::now() >= deadline {
+                    f.kill(id);
+                    return End::Played;
                 }
             }
         }
