@@ -8,7 +8,7 @@ import { useAction, useNow } from '../shared/hooks.js'
 import { deviceList, deviceName, useStore } from '../shared/store.js'
 import { clock, lastSeen, ringDay, status, trackTime } from '../shared/format.js'
 import { missing, nothingChosen } from '../shared/providers.js'
-import { devicePath, Dot, Empty, PageHead, PlayerCard, RingingCard, Switch, VolumeSlider } from './ui.jsx'
+import { devicePath, Empty, PageHead, PlayerCard, RingingCard, Switch, VolumeSlider } from './ui.jsx'
 import { Glyph } from './Flower.jsx'
 import { tz } from '../shared/zone.js'
 
@@ -22,20 +22,17 @@ function StationCard({ d }) {
   return (
     <article className={`card station${d.online ? '' : ' off'}`}>
       <Link to={devicePath(d.id)} className="station-link">
-        <Glyph device={d} size={48} />
+        <Glyph device={d} size={36} />
         <span className="station-name">
           <b>{deviceName(d)}</b>
-          <span>
-            <Dot d={d} />
-            <em>{d.online ? status(d) : lastSeen(d.last_seen) || status(d)}</em>
-          </span>
+          <span>{d.online ? status(d) : lastSeen(d.last_seen) || status(d)}</span>
         </span>
-        <ChevronRight size={20} aria-hidden="true" />
+        <ChevronRight size={18} aria-hidden="true" />
       </Link>
       {m && (
-        <p className="station-name" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, fontSize: 14 }}>
-          <Music2 size={16} aria-hidden="true" style={{ flex: 'none', color: 'var(--rasp)' }} />
-          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <p className="station-now">
+          <Music2 size={15} aria-hidden="true" />
+          <span>
             {m.title ?? m.track}
             {m.artist ? ` — ${m.artist}` : ''}
           </span>
@@ -67,7 +64,7 @@ function TimerItem({ t, devices }) {
         aria-label="Отменить таймер"
         title="Отменить"
       >
-        <X size={18} aria-hidden="true" />
+        <X size={16} aria-hidden="true" />
       </button>
     </li>
   )
@@ -96,29 +93,29 @@ function Agenda({ devices, list, className }) {
   const alarms = useStore((s) => s.alarms)
   const on = alarms.filter((a) => a.enabled)
   return (
-    <section className={`card ${className}`} aria-labelledby="agenda-h">
-      <div className="card-head">
-        <h2 id="agenda-h">Будильники и таймеры</h2>
-        {list.length === 1 && (
-          <Link to={devicePath(list[0].id)} className="btn ghost sm">
-            Все
-          </Link>
+    <section className={`stations-col ${className}`} aria-labelledby="agenda-h">
+      <div className="section-head">
+        <h2 id="agenda-h" className="section-title">
+          Будильники и таймеры
+        </h2>
+        {list.length === 1 && <Link to={devicePath(list[0].id)}>Все</Link>}
+      </div>
+      <div className="card">
+        {timers.length + on.length > 0 ? (
+          <ul className="agenda">
+            {timers.map((t) => (
+              <TimerItem key={`t${t.id}`} t={t} devices={devices} />
+            ))}
+            {on.map((a) => (
+              <AlarmItem key={`a${a.id}`} a={a} devices={devices} />
+            ))}
+          </ul>
+        ) : (
+          <Empty small icon={AlarmClock}>
+            Нет включённых будильников и идущих таймеров
+          </Empty>
         )}
       </div>
-      {timers.length + on.length > 0 ? (
-        <ul className="agenda" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-          {timers.map((t) => (
-            <TimerItem key={`t${t.id}`} t={t} devices={devices} />
-          ))}
-          {on.map((a) => (
-            <AlarmItem key={`a${a.id}`} a={a} devices={devices} />
-          ))}
-        </ul>
-      ) : (
-        <Empty small icon={AlarmClock}>
-          Нет включённых будильников и идущих таймеров
-        </Empty>
-      )}
     </section>
   )
 }
@@ -132,14 +129,12 @@ export default function Home() {
   const ringing = list.filter((d) => d.online && d.ring)
   const playing = list.filter((d) => d.online && d.music && !d.ring)
   const stations = (
-    <section
-      className="grow-2"
-      aria-labelledby="stations-h"
-      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}
-    >
-      <h2 id="stations-h" className="section-title" style={{ paddingTop: 0 }}>
-        Колонки
-      </h2>
+    <section className="stations-col grow-2" aria-labelledby="stations-h">
+      <div className="section-head">
+        <h2 id="stations-h" className="section-title">
+          Колонки
+        </h2>
+      </div>
       {list.length > 0 ? (
         <div className="stations">
           {list.map((d) => (
@@ -160,7 +155,7 @@ export default function Home() {
   )
   return (
     <main className="page">
-      <PageHead over={today()} title="Главная" />
+      <PageHead title="Главная" sub={today()} />
       {unset.length > 0 && (
         <div className="card">
           <Empty icon={KeyRound} title="Осталось выбрать модели" small>
@@ -180,7 +175,7 @@ export default function Home() {
       {playing.length > 0 ? (
         <>
           <div className="row">
-            <div className="grow-2" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
+            <div className="col grow-2">
               {playing.map((d) => (
                 <PlayerCard key={d.id} d={d} named />
               ))}

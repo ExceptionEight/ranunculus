@@ -42,9 +42,9 @@ function SoundItem({ s, used, preview }) {
         title={on ? 'Остановить' : 'Послушать'}
       >
         {on ? (
-          <Pause size={18} fill="currentColor" aria-hidden="true" />
+          <Pause size={14} fill="currentColor" aria-hidden="true" />
         ) : (
-          <Play size={18} fill="currentColor" aria-hidden="true" />
+          <Play size={14} fill="currentColor" aria-hidden="true" />
         )}
       </button>
       {renaming ? (
@@ -91,7 +91,7 @@ function SoundItem({ s, used, preview }) {
             aria-label={`Переименовать «${soundTitle(s.name)}»`}
             title="Переименовать"
           >
-            <Pencil size={17} aria-hidden="true" />
+            <Pencil size={16} aria-hidden="true" />
           </button>
           <button
             type="button"
@@ -100,7 +100,7 @@ function SoundItem({ s, used, preview }) {
             aria-label={`Удалить «${soundTitle(s.name)}»`}
             title="Удалить"
           >
-            <Trash2 size={17} aria-hidden="true" />
+            <Trash2 size={16} aria-hidden="true" />
           </button>
         </span>
       )}
@@ -129,9 +129,7 @@ function Uploads() {
   const [drop, over] = useDrop(up.add)
   return (
     <div className={`drop${over ? ' over' : ''}`} {...drop}>
-      <span className="ico" aria-hidden="true">
-        <Upload size={20} />
-      </span>
+      <Upload size={20} strokeWidth={1.75} aria-hidden="true" />
       <p>
         Перетащите аудиофайл сюда или выберите его: MP3, OGG, WAV, M4A, FLAC. Тишина в начале обрежется, громкость
         выровняется.

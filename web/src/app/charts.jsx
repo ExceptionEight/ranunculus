@@ -71,7 +71,7 @@ export function Bars({ points, label, describe, tick, height = 200 }) {
   const shown = hover != null ? points[hover] : null
   const [title, details] = shown ? describe(shown) : []
   return (
-    <figure className="chart-box" ref={ref} style={{ margin: 0 }} onMouseLeave={() => setHover(null)}>
+    <figure className="chart-box" ref={ref} onMouseLeave={() => setHover(null)}>
       {W > 0 && (
         <svg className="chart" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
           {gridVals.map((v) => (
@@ -93,8 +93,12 @@ export function Bars({ points, label, describe, tick, height = 200 }) {
             const x = left + i * step + gap / 2
             const w = Math.max(1, step - gap)
             const h = Math.max(0, y(0) - y(p.v))
-            const r = Math.min(4, w / 2, h)
+            const r = Math.min(3, w / 2, h)
             const t = tick(p, i, narrow)
+            // a label under the first or the last bar stays inside the chart: its middle is kept half its width
+            // (some 6 px a letter) from either edge
+            const half = t ? t.length * 3.1 : 0
+            const tx = Math.max(left + half, Math.min(x + w / 2, W - half))
             return (
               <g key={p.key} onMouseEnter={() => setHover(i)} onClick={() => setHover(i)}>
                 <rect className="hit" x={left + i * step} y={top} width={step} height={H - top - bottom + 4} />
@@ -105,7 +109,7 @@ export function Bars({ points, label, describe, tick, height = 200 }) {
                   />
                 )}
                 {t && (
-                  <text x={x + w / 2} y={H - 6} textAnchor="middle">
+                  <text x={tx} y={H - 6} textAnchor="middle">
                     {t}
                   </text>
                 )}

@@ -1,4 +1,4 @@
-/* The frame: sidebar on a wide screen, tab bar on a phone */
+/* The frame: a sidebar on a wide screen, a tab bar on a phone */
 
 .shell {
   min-height: 100dvh;
@@ -8,11 +8,11 @@
 
 .main {
   min-width: 0;
-  padding: 20px 16px calc(108px + env(safe-area-inset-bottom));
+  padding: 20px 16px calc(84px + env(safe-area-inset-bottom));
 }
 
 .page {
-  max-width: 1180px;
+  max-width: 1040px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -20,7 +20,7 @@
 }
 
 .page.narrow {
-  max-width: 820px;
+  max-width: 720px;
 }
 
 .side {
@@ -29,48 +29,43 @@
 
 @media (min-width: 960px) {
   .shell {
-    grid-template-columns: 272px minmax(0, 1fr);
+    grid-template-columns: 232px minmax(0, 1fr);
   }
 
   .main {
-    padding: 32px 32px 56px;
+    padding: 32px 40px 64px;
   }
 
   .side {
     display: flex;
+    flex-direction: column;
     position: sticky;
     top: 0;
     height: 100dvh;
-    padding: 20px 0 20px 20px;
+    padding: 20px 12px 12px;
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
   }
-}
-
-.side-in {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 18px 12px 12px;
-  border-radius: var(--r-card);
-  background: var(--glass);
-  border: 1px solid var(--glass-edge);
-  box-shadow: var(--shadow);
-  overflow-y: auto;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  padding: 2px 12px 22px;
+  gap: 10px;
+  padding: 0 10px 20px;
   color: var(--ink);
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   text-decoration: none;
 }
 
 .brand:hover {
   color: var(--ink);
+}
+
+.brand img {
+  flex: none;
 }
 
 .nav {
@@ -82,16 +77,21 @@
 .nav a {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 0 12px;
-  border-radius: var(--r-ctl);
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
   color: var(--ink-2);
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   text-decoration: none;
   transition:
     background 0.15s,
     color 0.15s;
+}
+
+.nav a > svg {
+  flex: none;
 }
 
 .nav a:hover {
@@ -100,21 +100,8 @@
 }
 
 .nav a.active {
-  background: var(--glass-2);
+  background: var(--fill-2);
   color: var(--ink);
-  box-shadow: var(--shadow-sm);
-}
-
-.nav a.active > svg {
-  color: var(--rasp);
-}
-
-.nav .sub {
-  font-weight: 500;
-}
-
-.nav .sub .glyph {
-  margin: 0 -2px;
 }
 
 .nav .sub span {
@@ -125,12 +112,15 @@
   white-space: nowrap;
 }
 
+/* the flower is a little wider than the icons above it: its centre under theirs */
+.nav .sub .glyph {
+  margin: 0 -1px;
+}
+
 .side-label {
-  padding: 22px 12px 8px;
+  padding: 20px 10px 6px;
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 500;
   color: var(--ink-3);
 }
 
@@ -143,12 +133,13 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 52px;
+  min-height: 44px;
   padding: 6px 10px;
-  border-radius: 16px;
+  border-radius: var(--r-sm);
   color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
   text-decoration: none;
-  font-weight: 600;
 }
 
 .side-me:hover {
@@ -165,34 +156,36 @@
 
 .avatar {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, var(--pink), var(--rasp));
-  color: #fff;
-  font-size: 15px;
-  font-weight: 700;
+  background: var(--fill-2);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
+}
+
+.avatar.lg {
+  width: 44px;
+  height: 44px;
+  font-size: 17px;
 }
 
 .tabbar {
   position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: calc(10px + env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 20;
   display: flex;
-  gap: 4px;
-  height: 66px;
-  padding: 6px;
-  border-radius: 26px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
   background: var(--bar);
-  border: 1px solid var(--glass-edge);
-  box-shadow: 0 4px 16px rgba(42, 20, 32, 0.1);
-  -webkit-backdrop-filter: blur(22px) saturate(170%);
-  backdrop-filter: blur(22px) saturate(170%);
+  border-top: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
 }
 
 .tabbar a {
@@ -203,21 +196,18 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
-  border-radius: 20px;
+  height: 48px;
+  border-radius: var(--r-ctl);
   color: var(--ink-3);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
 }
 
-.tabbar a:hover {
-  color: var(--ink);
-}
-
+.tabbar a:hover,
 .tabbar a.active {
-  color: var(--rasp-ink);
-  background: var(--rasp-wash);
+  color: var(--ink);
 }
 
 @media (min-width: 960px) {
@@ -234,13 +224,13 @@
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: max-content;
   max-width: calc(100vw - 32px);
-  padding: 10px 18px;
+  padding: 8px 14px;
   border-radius: 999px;
-  background: var(--sheet);
+  background: var(--raised);
   box-shadow: var(--shadow-pop);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
 }

@@ -7,7 +7,7 @@ export default function Pane({ title, children }) {
     <>
       <div className="head-text">
         <Link to="/settings" className="back">
-          <ChevronLeft size={18} aria-hidden="true" />
+          <ChevronLeft size={16} aria-hidden="true" />
           Настройки
         </Link>
         <h2 className="pane-title">{title}</h2>

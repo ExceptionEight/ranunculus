@@ -1,12 +1,12 @@
-/* Dialogs: a sheet from the bottom on a phone */
+/* Dialogs: a card in the middle; a sheet from the bottom on a phone */
 
 dialog.sheet {
-  width: min(560px, calc(100vw - 32px));
+  width: min(520px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   padding: 0;
   border: 0;
-  border-radius: var(--r-card);
-  background: var(--sheet);
+  border-radius: 16px;
+  background: var(--raised);
   color: var(--ink);
   box-shadow: var(--shadow-pop);
   overflow: hidden;
@@ -15,27 +15,81 @@ dialog.sheet {
 dialog.sheet[open] {
   display: flex;
   flex-direction: column;
-  animation: rise 0.22s ease-out;
+  animation: rise 0.18s ease-out;
 }
 
 dialog.sheet::backdrop {
   background: var(--scrim);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
 }
 
 .sheet-head {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 20px 20px 4px 24px;
+  padding: 14px 12px 6px 20px;
 }
 
 .sheet-head h2 {
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-body {
+  padding: 10px 20px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sheet-foot {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.sheet-foot .spacer {
+  flex: 1;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  dialog.sheet {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - 24px);
+    margin: auto 0 0;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .sheet-foot {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .sheet-foot .btn {
+    flex: 1 1 auto;
+  }
+
+  .sheet-foot .spacer {
+    display: none;
+  }
 }
 
 /* a «?» and its note (ui.jsx Hint): the note's top padding bridges the gap, so a mouse can move onto it */
@@ -59,17 +113,16 @@ dialog.sheet::backdrop {
   flex-direction: column;
   gap: 10px;
   padding: 14px 16px;
-  border-radius: 16px;
-  border: 1px solid var(--line-2);
-  background: var(--sheet);
+  border-radius: var(--r-ctl);
+  background: var(--raised);
   box-shadow: var(--shadow-pop);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.4;
 }
 
 .hint-title {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 @keyframes hint-in {
@@ -86,7 +139,7 @@ dialog.sheet::backdrop {
 }
 
 .help-list > div {
-  padding: 9px 0;
+  padding: 8px 0;
   border-top: 1px solid var(--line);
 }
 
@@ -100,60 +153,10 @@ dialog.sheet::backdrop {
 }
 
 .help-list dt {
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .help-list dd {
   margin: 2px 0 0;
   color: var(--ink-2);
-}
-
-.sheet-body {
-  padding: 16px 24px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.sheet-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 24px 22px;
-  border-top: 1px solid var(--line);
-}
-
-.sheet-foot .spacer {
-  flex: 1;
-}
-
-@keyframes rise {
-  from {
-    transform: translateY(16px);
-    opacity: 0;
-  }
-}
-
-@media (max-width: 600px) {
-  dialog.sheet {
-    width: 100%;
-    max-width: 100%;
-    max-height: calc(100dvh - 24px);
-    margin: auto 0 0;
-    border-radius: 28px 28px 0 0;
-  }
-
-  .sheet-foot {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom));
-  }
-
-  .sheet-foot .btn {
-    flex: 1 1 auto;
-  }
-
-  .sheet-foot .spacer {
-    display: none;
-  }
 }

@@ -1,11 +1,16 @@
 /* Analytics */
 
-/* the tiles: five in a row on a wide screen; narrower, the first one (the headline) takes two places so that none
-   is left alone in its row: 2 + 3 on a tablet or a small PC, 1 + 2 + 2 on a phone */
+/* the numbers of a period: cells of one card, a hairline between them (the gap shows the card's own colour).
+   Five in a row on a wide screen; narrower, the first one takes two places so that no cell is left empty:
+   2 + 3 on a tablet, 1 + 2 + 2 on a phone */
 .stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--gap);
+  gap: 1px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--line);
+  background-clip: padding-box;
 }
 
 .stats > :first-child:nth-last-child(odd) {
@@ -29,31 +34,36 @@
 }
 
 .stat {
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
-  justify-content: space-between;
-  min-height: 128px;
-}
-
-.stat b {
-  font-size: clamp(30px, 3.6vw, 40px);
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  line-height: 1.05;
-  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  padding: 16px 20px;
+  background: var(--surface);
 }
 
 .stat span {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-2);
 }
 
-.stat.hero span {
-  color: rgba(255, 255, 255, 0.9);
+.stat b {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+  .stat {
+    padding: 14px 16px;
+  }
 }
 
 .chart-box {
   position: relative;
+  margin: 0;
 }
 
 .chart {
@@ -63,12 +73,12 @@
 }
 
 .chart .grid {
-  stroke: var(--line-2);
+  stroke: var(--line);
   stroke-width: 1;
 }
 
 .chart .base {
-  stroke: var(--fill-2);
+  stroke: var(--line-2);
   stroke-width: 1;
 }
 
@@ -80,7 +90,7 @@
 }
 
 .chart .bar {
-  fill: var(--rasp);
+  fill: var(--accent);
   transition: opacity 0.15s;
 }
 
@@ -99,26 +109,26 @@
   top: 0;
   transform: translate(-50%, calc(-100% - 8px));
   width: max-content;
-  max-width: 260px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--line-2);
-  background: var(--sheet);
-  box-shadow: var(--shadow-sm);
-  font-size: 13px;
+  max-width: 240px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  background: var(--raised);
+  box-shadow: var(--shadow-pop);
+  font-size: 12.5px;
   line-height: 1.35;
   pointer-events: none;
 }
 
 .tip b {
   display: block;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .tip span {
   color: var(--ink-2);
 }
 
+/* a list with a measure under each name */
 .bars-list {
   display: flex;
   flex-direction: column;
@@ -138,11 +148,10 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .bars-list .bl-top > :first-child {
-  font-weight: 600;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -155,8 +164,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.bars-list .link-btn {
+  font-weight: 400;
+}
+
 .meter {
-  height: 6px;
+  height: 4px;
   border-radius: 999px;
   background: var(--fill-2);
   overflow: hidden;
@@ -166,7 +179,7 @@
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--rasp);
+  background: var(--accent);
 }
 
 .songs {
@@ -179,20 +192,24 @@
 
 .song {
   display: grid;
-  grid-template-columns: 2.2em minmax(0, 1fr) auto;
+  grid-template-columns: 2em minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  padding: 12px 0;
+  padding: 10px 0;
   border-top: 1px solid var(--line);
 }
 
 .song:first-child {
   border-top: 0;
+  padding-top: 0;
+}
+
+.song:last-child {
+  padding-bottom: 0;
 }
 
 .song .rank {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 13px;
   color: var(--ink-3);
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -205,7 +222,8 @@
 }
 
 .song .what b {
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -221,6 +239,7 @@
 }
 
 .song .what small {
+  font-size: 12px;
   color: var(--ink-3);
 }
 
@@ -232,11 +251,16 @@
 }
 
 .song .score b {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .song .score small {
   font-size: 12px;
+  color: var(--ink-3);
+}
+
+.card-head .side-note {
+  font-size: 13px;
   color: var(--ink-3);
 }

@@ -8,7 +8,7 @@
 | Что | Где | Лицензия |
 |---|---|---|
 | Веса Silero VAD 6.2.3 | `crates/vad/assets/silero_vad_16k.safetensors` | MIT, © Silero Team |
-| Шрифт Rubik | веб-интерфейс, пакет `@fontsource-variable/rubik` | SIL Open Font License 1.1 |
+| Шрифт Golos Text | веб-интерфейс, пакет `@fontsource-variable/golos-text` | SIL Open Font License 1.1 |
 | Иконки Lucide | веб-интерфейс, пакет `lucide-react` | ISC |
 | React, React Router | веб-интерфейс | MIT |
 | Библиотеки Rust | сервер и клиент колонки, список в `Cargo.lock` | в основном MIT и Apache-2.0 |

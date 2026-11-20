@@ -13,13 +13,13 @@ export default function About() {
   return (
     <Pane title="О программе">
       <section className="card">
-        <div className="r" style={{ borderTop: 0, paddingTop: 0 }}>
-          <img src="/icon.svg" alt="" width={56} height={56} style={{ borderRadius: 14 }} />
-          <div className="r-text">
-            <b style={{ fontSize: 18 }}>Ranunculus</b>
-          </div>
-        </div>
         <div className="rows">
+          <div className="r lead">
+            <img className="app-icon" src="/icon.svg" alt="" width={44} height={44} />
+            <div className="r-text">
+              <b>Ranunculus</b>
+            </div>
+          </div>
           <div className="r">
             <div className="r-text">
               <b>Версия сервера</b>

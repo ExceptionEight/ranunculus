@@ -1,6 +1,6 @@
 /* The station's glyph: the flower */
 
-/* The logo's four layers in its own colours, light or dark, on the card itself (no tile under it); Flower.jsx moves
+/* The logo's four layers in its own colours, light or dark, on the page itself (no tile under it); Flower.jsx moves
    them (it comes apart into dots and closes again). A station that is not there: one grey, as the logo is drawn in
    one colour. */
 .glyph {

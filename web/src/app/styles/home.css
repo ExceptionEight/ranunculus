@@ -1,23 +1,54 @@
-/* Home: stations, what is set to ring */
+/* Home: the stations, what is set to ring */
+
+/* a part of the page: its heading over its cards */
+.stations-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* what is set to ring, beside the stations: under them when there is no room for its lines */
+.stations-col.grow-1 {
+  flex-basis: 300px;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 22px;
+}
+
+.section-head a {
+  font-size: 13px;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.section-head a:hover {
+  color: var(--ink);
+}
 
 .stations {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--gap);
 }
 
 .station {
-  padding: 20px;
-  gap: 18px;
+  padding: 16px;
+  gap: 14px;
 }
 
 .station-link {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   margin: -6px;
   padding: 6px;
-  border-radius: 18px;
+  border-radius: var(--r-ctl);
   color: var(--ink);
   text-decoration: none;
 }
@@ -32,77 +63,88 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .station-name b {
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .station-name span {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   font-size: 13px;
   color: var(--ink-2);
-  min-width: 0;
-}
-
-.station-name span > em {
-  font-style: normal;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.station-name + svg {
+.station-link > svg:last-child {
   color: var(--ink-3);
   flex: none;
 }
 
-.station .slide {
-  gap: 12px;
+/* what plays on it, in a line */
+.station-now {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-2);
 }
 
-.station .slide svg {
+.station-now svg {
   flex: none;
-  color: var(--ink-3);
+  color: var(--accent);
 }
 
-.station.off {
-  opacity: 0.75;
+.station-now span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.station.off .glyph {
+  opacity: 0.8;
 }
 
 /* the agenda: timers going and alarms on */
 .agenda {
   display: flex;
   flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .agenda-item {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 12px 0;
+  padding: 10px 0;
   border-top: 1px solid var(--line);
 }
 
 .agenda-item:first-child {
   border-top: 0;
+  padding-top: 0;
+}
+
+.agenda-item:last-child {
+  padding-bottom: 0;
 }
 
 .agenda-item .when {
   flex: none;
-  min-width: 4.4ch;
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  min-width: 5ch;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
-  line-height: 1;
 }
 
 .agenda-item .what {
@@ -110,11 +152,12 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .agenda-item .what b {
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -131,5 +174,5 @@
 }
 
 .agenda-item .what a:hover {
-  color: var(--rasp-ink);
+  color: var(--accent-ink);
 }

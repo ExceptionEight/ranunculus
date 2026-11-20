@@ -63,18 +63,18 @@ function Item({ w, onChange, onDelete }) {
         aria-label={on ? 'Остановить' : `Послушать срабатывание в ${clock(w.t)}`}
       >
         {on ? (
-          <Pause size={18} fill="currentColor" aria-hidden="true" />
+          <Pause size={14} fill="currentColor" aria-hidden="true" />
         ) : (
-          <Play size={18} fill="currentColor" aria-hidden="true" />
+          <Play size={14} fill="currentColor" aria-hidden="true" />
         )}
       </button>
       <div className="wake-text">
         <b>
           {clock(w.t)}
-          <span className="faint" style={{ fontWeight: 400 }}>
+          <small>
             {w.button ? ' · кнопка' : ` · уверенность ${w.p.toFixed(2).replace('.', ',')}`}
             {w.barge ? ' · во время ответа' : ''}
-          </span>
+          </small>
         </b>
         {word && <span>Слово: {word}</span>}
         <span>Команда: {command}</span>
@@ -89,7 +89,7 @@ function Item({ w, onChange, onDelete }) {
           aria-label="Верное срабатывание"
           title="Верно: слово сказали колонке"
         >
-          <Check size={18} strokeWidth={2.4} aria-hidden="true" />
+          <Check size={16} strokeWidth={2.2} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -99,7 +99,7 @@ function Item({ w, onChange, onDelete }) {
           aria-label="Ложное срабатывание"
           title="Ложное: колонка сработала зря"
         >
-          <X size={18} strokeWidth={2.4} aria-hidden="true" />
+          <X size={16} strokeWidth={2.2} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -108,7 +108,7 @@ function Item({ w, onChange, onDelete }) {
           aria-label="Удалить запись"
           title="Удалить запись"
         >
-          <Trash2 size={17} aria-hidden="true" />
+          <Trash2 size={16} aria-hidden="true" />
         </button>
       </div>
     </li>
@@ -269,9 +269,6 @@ export default function Wakes({ d }) {
           onChange={setFilter}
         />
       </div>
-      <p className="faint" style={{ padding: '0 4px', fontSize: 14 }}>
-        Здесь можно послушать разговоры и разметить верные и неверные срабатывания для дообучения модели.
-      </p>
       {error && <Failed error={error} />}
       {actError && <p className="err">{actError}</p>}
       {!page && !error && <Loading />}
@@ -284,7 +281,7 @@ export default function Wakes({ d }) {
       )}
       {items.length > 0 && (
         <section className="card flat" aria-label="Срабатывания">
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          <ul className="wakes">
             {items.map((w, i) => (
               <WakeWithDay key={w.id} w={w} prev={items[i - 1]} onChange={take} onDelete={remove} />
             ))}

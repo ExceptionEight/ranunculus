@@ -65,13 +65,13 @@ export default function Analytics() {
     <main className="page">
       <PageHead title="Аналитика">{music && <MusicHelp />}</PageHead>
       <div className="toolbar">
-        <nav className="seg big" aria-label="Что показывать">
+        <nav className="seg" aria-label="Что показывать">
           <NavLink to="/analytics" end>
             Разговоры
           </NavLink>
           <NavLink to="/analytics/music">Музыка</NavLink>
         </nav>
-        <span style={{ flex: 1 }} />
+        <span className="spacer" />
         {list.length > 1 && (
           <label>
             <span className="sr-only">Колонка</span>
@@ -141,31 +141,27 @@ function Talk({ device, days: chosen, devices, setDevice }) {
   const byDevice = !shownDevice && data.devices.length > 1
   const devMax = Math.max(1, ...data.devices.map((x) => x.requests))
   return (
-    <div
-      className={fresh ? undefined : 'stale'}
-      aria-busy={!fresh}
-      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}
-    >
-      <div className="stats">
-        <div className="hero rasp stat">
+    <div className={`col${fresh ? '' : ' stale'}`} aria-busy={!fresh}>
+      <div className="card stats">
+        <div className="stat">
           <span>Запросы за {periodWords(days)}</span>
-          <b className="num">{total}</b>
+          <b>{total}</b>
         </div>
-        <div className="card stat">
+        <div className="stat">
           <span>В среднем за день</span>
-          <b className="num">{avg(total / days)}</b>
+          <b>{avg(total / days)}</b>
         </div>
-        <div className="card stat">
+        <div className="stat">
           <span>Среднее время ответа</span>
-          <b className="num">{llm != null ? secs(llm) : 'нет'}</b>
+          <b>{llm != null ? secs(llm) : 'нет'}</b>
         </div>
-        <div className="card stat">
+        <div className="stat">
           <span>Прерванные ответы</span>
-          <b className="num">{sum('cut')}</b>
+          <b>{sum('cut')}</b>
         </div>
-        <div className="card stat">
+        <div className="stat">
           <span>Не распознано</span>
-          <b className="num">{sum('unheard')}</b>
+          <b>{sum('unheard')}</b>
         </div>
       </div>
 

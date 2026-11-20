@@ -8,34 +8,34 @@
 }
 
 .login-card {
-  width: min(420px, 100%);
-  padding: 32px 28px;
-  background: var(--glass-2);
-  gap: 18px;
+  width: min(380px, 100%);
+  padding: 28px 24px;
+  gap: 16px;
 }
 
 .login-brand {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 16px;
+  gap: 14px;
   margin-bottom: 4px;
 }
 
 .login-brand img {
-  width: 56px;
-  height: 56px;
+  width: 40px;
+  height: 40px;
 }
 
 .login-brand h1 {
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .login-brand p {
-  margin-top: 6px;
+  margin-top: 4px;
+  font-size: 14px;
   color: var(--ink-2);
 }
 
@@ -52,19 +52,5 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--line-2);
-}
-
-.notice {
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--bad-soft);
-  color: var(--bad);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.notice.info {
-  background: var(--rasp-wash);
-  color: var(--ink);
+  background: var(--line);
 }

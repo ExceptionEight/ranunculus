@@ -127,11 +127,6 @@ export function lastSeen(t, now = Date.now() / 1000) {
   return `Была в сети ${d === 'Сегодня' || d === 'Вчера' ? d.toLowerCase() : d} в ${clock(t)}`
 }
 
-/** Busy right now (the glyph moves): listening, thinking, talking, ringing. */
-export function active(d) {
-  return !!d?.online && (!!d.ring || ['listen', 'think', 'search', 'speak'].includes(d.panel))
-}
-
 const WD = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс']
 // «во вторник», not «в вторник»
 const ON_DAY = ['в понедельник', 'во вторник', 'в среду', 'в четверг', 'в пятницу', 'в субботу', 'в воскресенье']

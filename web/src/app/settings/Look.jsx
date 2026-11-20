@@ -1,5 +1,4 @@
 // Settings → the look: light, dark or as the system has it.
-import { Check } from 'lucide-react'
 import { setTheme, useTheme } from '../../shared/theme.js'
 import Pane from './Pane.jsx'
 
@@ -9,12 +8,12 @@ const THEMES = [
   ['system', 'Системная'],
 ]
 
-/** A tiny screen of the app in a theme: the backdrop, the raspberry tile, a glass card. */
+/** A tiny screen of the app in a theme: the page, the sidebar's edge, a card with the flower's dot and two lines. */
 function Screen({ mode }) {
   return (
     <span className={`t-screen t-${mode}`}>
-      <span className="t-hero" />
       <span className="t-card">
+        <b />
         <b />
         <b />
       </span>
@@ -45,11 +44,6 @@ export default function Look() {
                   </>
                 ) : (
                   <Screen mode={id} />
-                )}
-                {theme === id && (
-                  <span className="t-mark">
-                    <Check size={13} strokeWidth={3} />
-                  </span>
                 )}
               </span>
               <span className="t-name">{name}</span>

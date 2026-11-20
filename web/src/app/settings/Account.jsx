@@ -19,7 +19,6 @@ function NewPassword({ onDone }) {
   return (
     <form
       className="form"
-      style={{ width: '100%' }}
       onSubmit={(e) => {
         e.preventDefault()
         save()
@@ -89,16 +88,16 @@ export default function Account() {
   return (
     <Pane title="Аккаунт">
       <section className="card">
-        <div className="r" style={{ borderTop: 0, paddingTop: 0 }}>
-          <span className="avatar" style={{ width: 52, height: 52, fontSize: 20 }} aria-hidden="true">
-            {[...name][0]}
-          </span>
-          <div className="r-text">
-            <b style={{ fontSize: 18 }}>{name}</b>
-            <span>{via ? `Вход через ${via}` : 'Вход по паролю'}</span>
-          </div>
-        </div>
         <div className="rows">
+          <div className="r lead">
+            <span className="avatar lg" aria-hidden="true">
+              {[...name][0]}
+            </span>
+            <div className="r-text">
+              <b>{name}</b>
+              <span>{via ? `Вход через ${via}` : 'Вход по паролю'}</span>
+            </div>
+          </div>
           <div className={`r${changing ? ' wide' : ''}`}>
             <div className="r-text">
               <b>Пароль</b>
@@ -133,7 +132,7 @@ export default function Account() {
             </div>
             <div className="r-ctl">
               <button className="btn" onClick={() => out(false)} disabled={busy}>
-                <LogOut size={17} aria-hidden="true" />
+                <LogOut size={16} aria-hidden="true" />
                 Выйти
               </button>
             </div>

@@ -57,17 +57,15 @@ export default function Settings() {
     <main className={`page settings-page${hasPane ? ' has-pane' : ''}`}>
       <PageHead title="Настройки" />
       <div className="settings">
-        <nav className="card set-nav" aria-label="Разделы настроек">
+        <nav className="set-nav" aria-label="Разделы настроек">
           {GROUPS.map(([group, items]) => (
             <div key={group} style={{ display: 'contents' }}>
               <p className="set-group">{group}</p>
               {items.map(([path, title, Icon]) => (
                 <NavLink key={path} to={`/settings/${path}`}>
-                  <span className="ico sm" aria-hidden="true">
-                    <Icon size={18} />
-                  </span>
+                  <Icon size={16} aria-hidden="true" />
                   <span className="label-text">{title}</span>
-                  <ChevronRight size={18} aria-hidden="true" />
+                  <ChevronRight size={16} aria-hidden="true" />
                 </NavLink>
               ))}
             </div>

@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 
 const KEY = 'ranunculus.theme'
 export const MODES = ['system', 'light', 'dark']
-const PAGE = { light: '#FBF0F3', dark: '#12090E' }
+const PAGE = { light: '#F8F8F9', dark: '#101012' }
 const listeners = new Set()
 
 function read() {

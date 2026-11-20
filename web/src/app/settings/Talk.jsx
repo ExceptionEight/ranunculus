@@ -33,7 +33,6 @@ export default function Talk() {
           <div className="r stack-m">
             <div className="r-text">
               <b>Род в обращении</b>
-              <span>«Ты спросил» или «ты спросила»</span>
             </div>
             <div className="r-ctl">
               {address && <Seg label="Род в обращении" items={ADDRESS} value={address} onChange={setAddress} />}
@@ -42,8 +41,9 @@ export default function Talk() {
           </div>
         </div>
       </section>
-      <section className="card">
-        <p className="muted">
+      <section className="card" aria-labelledby="prefs-h">
+        <h3 id="prefs-h">Предпочтения в общении</h3>
+        <p className="about">
           Как ассистенту с вами общаться: обращение, длина ответов, темы, которых лучше не касаться. Учитывается во всех
           ответах на всех колонках.
         </p>
@@ -54,15 +54,12 @@ export default function Talk() {
             save()
           }}
         >
-          <label className="sr-only" htmlFor="prefs">
-            Пожелания
-          </label>
           <textarea
             id="prefs"
             className="field"
+            aria-labelledby="prefs-h"
             rows={8}
             maxLength={2000}
-            placeholder="Например: отвечай коротко, обращайся на «ты», меня зовут Саша."
             value={text}
             onChange={(e) => {
               setText(e.target.value)

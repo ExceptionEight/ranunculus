@@ -1,6 +1,6 @@
 // The frame: three places (Главная, Аналитика, Настройки) in a sidebar on a wide screen, with the stations
 // under them, and in a tab bar at the bottom on a phone; a line on top when the server cannot be reached.
-// Not signed in: the sign-in form instead; not known yet: the backdrop and that line only.
+// Not signed in: the sign-in form instead; not known yet: that line only.
 import { useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router'
 import { ChartColumn, LayoutGrid, Settings as Gear } from 'lucide-react'
@@ -35,7 +35,7 @@ function LinkBanner() {
   if (!show) return null
   return (
     <div className="banner" role="status">
-      <span className="dot rasp busy" aria-hidden="true" />
+      <span className="dot" aria-hidden="true" />
       {link === 'lost' ? 'Сервер недоступен' : 'Нет связи с сервером. Переподключение…'}
     </div>
   )
@@ -54,50 +54,45 @@ function Sidebar() {
   const list = useMemo(() => deviceList(devices), [devices])
   return (
     <aside className="side">
-      <div className="side-in">
-        <Link to="/" className="brand">
-          Ranunculus
-        </Link>
-        <nav className="nav" aria-label="Разделы">
-          {PLACES.map(([path, title, Icon]) => (
-            <NavLink
-              key={path}
-              to={path}
-              className={() => (placeActive(path, pathname) && !pathname.startsWith('/devices') ? 'active' : '')}
-            >
-              <Icon size={20} aria-hidden="true" />
-              {title}
-            </NavLink>
-          ))}
-        </nav>
-        {list.length > 0 && (
-          <>
-            <p className="side-label">Колонки</p>
-            <nav className="nav" aria-label="Колонки">
-              {list.map((d) => (
-                <NavLink
-                  key={d.id}
-                  to={devicePath(d.id)}
-                  className={({ isActive }) => `sub${isActive ? ' active' : ''}`}
-                >
-                  <Glyph device={d} size={24} />
-                  <span>{deviceName(d)}</span>
-                </NavLink>
-              ))}
-            </nav>
-          </>
-        )}
-        {user && (
-          <div className="side-foot">
-            <Link to="/settings/account" className="side-me">
-              <span className="avatar" aria-hidden="true">
-                {[...user.name][0]}
-              </span>
-              <span>{user.name}</span>
-            </Link>
-          </div>
-        )}
-      </div>
+      <Link to="/" className="brand">
+        <img src="/favicon.svg" alt="" width={22} height={22} />
+        Ranunculus
+      </Link>
+      <nav className="nav" aria-label="Разделы">
+        {PLACES.map(([path, title, Icon]) => (
+          <NavLink
+            key={path}
+            to={path}
+            className={() => (placeActive(path, pathname) && !pathname.startsWith('/devices') ? 'active' : '')}
+          >
+            <Icon size={18} aria-hidden="true" />
+            {title}
+          </NavLink>
+        ))}
+      </nav>
+      {list.length > 0 && (
+        <>
+          <p className="side-label">Колонки</p>
+          <nav className="nav" aria-label="Колонки">
+            {list.map((d) => (
+              <NavLink key={d.id} to={devicePath(d.id)} className={({ isActive }) => `sub${isActive ? ' active' : ''}`}>
+                <Glyph device={d} size={20} />
+                <span>{deviceName(d)}</span>
+              </NavLink>
+            ))}
+          </nav>
+        </>
+      )}
+      {user && (
+        <div className="side-foot">
+          <Link to="/settings/account" className="side-me">
+            <span className="avatar" aria-hidden="true">
+              {[...user.name][0]}
+            </span>
+            <span>{user.name}</span>
+          </Link>
+        </div>
+      )}
     </aside>
   )
 }
@@ -108,7 +103,7 @@ function TabBar() {
     <nav className="tabbar" aria-label="Разделы">
       {PLACES.map(([path, title, Icon]) => (
         <NavLink key={path} to={path} className={() => (placeActive(path, pathname) ? 'active' : '')}>
-          <Icon size={22} aria-hidden="true" />
+          <Icon size={20} aria-hidden="true" />
           {title}
         </NavLink>
       ))}
@@ -125,23 +120,10 @@ export default function App() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [page])
-  if (!auth)
-    return (
-      <>
-        <div className="backdrop" />
-        <LinkBanner />
-      </>
-    )
-  if (!auth.user)
-    return (
-      <>
-        <div className="backdrop" />
-        <Login auth={auth} />
-      </>
-    )
+  if (!auth) return <LinkBanner />
+  if (!auth.user) return <Login auth={auth} />
   return (
     <>
-      <div className="backdrop" />
       <div className="shell">
         <Sidebar />
         <div className="main">

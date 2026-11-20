@@ -2,7 +2,7 @@
 // The roles: who hears (recognition), answers (a language model), speaks (a voice) and finds past talks by meaning
 // (embeddings) — each one model of one of the connections, used by every station. Keys go in and never come back.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AudioWaveform, Brain, Ear, KeyRound, MessageSquareText, Play, Plug, Plus } from 'lucide-react'
+import { AudioWaveform, Brain, Ear, MessageSquareText, Play, Plus } from 'lucide-react'
 import { api } from '../../shared/api.js'
 import { useAction } from '../../shared/hooks.js'
 import { useStore } from '../../shared/store.js'
@@ -37,20 +37,13 @@ function FirstKey({ connection, fresh }) {
   const [key, setKey] = useState('')
   const [save, busy, error] = useAction(() => api.changeConnection(connection.id, { key: key.trim() }))
   return (
-    <section className="card key-card" aria-labelledby="first-key">
-      <div className="card-head">
-        <div className="card-title">
-          <span className="ico" aria-hidden="true">
-            <KeyRound size={20} />
-          </span>
-          <div className="r-text">
-            <b id="first-key">Ключ OpenRouter</b>
-            <span>
-              Один ключ на всё: распознавание, ответы, голос и память.
-              {fresh && ' Модели подберутся сами, потом их можно сменить.'}
-            </span>
-          </div>
-        </div>
+    <section className="card" aria-labelledby="first-key">
+      <div className="card-title r-text">
+        <b id="first-key">Ключ OpenRouter</b>
+        <span>
+          Один ключ на всё: распознавание, ответы, голос и память.
+          {fresh && ' Модели подберутся сами, потом их можно сменить.'}
+        </span>
       </div>
       <form
         className="key-row"
@@ -188,10 +181,10 @@ function ConnectionItem({ c, used, onEdit }) {
   const key = c.key_set ? (c.key_tail ? `ключ …${c.key_tail}` : 'ключ задан') : c.cloud ? 'ключ не задан' : 'без ключа'
   return (
     <li className="prov">
-      <div className="r-text" style={{ flex: '1 1 260px' }}>
+      <div className="r-text">
         <b>
           {c.name}
-          {c.cloud && <span className="tag rasp">Облако</span>}
+          {c.cloud && <span className="tag">Облако</span>}
         </b>
         <span>{[c.url, key].join(' · ')}</span>
       </div>
@@ -277,11 +270,7 @@ function ModelPicker({ connection, role, value, onPick, onList }) {
             </button>
           </li>
         ))}
-        {!shown.length && (
-          <li className="faint" style={{ padding: 10 }}>
-            Ничего не найдено
-          </li>
-        )}
+        {!shown.length && <li className="none">Ничего не найдено</li>}
       </ul>
     </div>
   )
@@ -384,7 +373,7 @@ function RoleEditor({ role, chosen, connections, onClose }) {
               disabled={listen.busy || !connection}
               onClick={() => listen.run(body())}
             >
-              <Play size={15} aria-hidden="true" /> {listen.busy ? 'Синтез…' : 'Послушать'}
+              <Play size={13} fill="currentColor" aria-hidden="true" /> {listen.busy ? 'Синтез…' : 'Послушать'}
             </button>
           )}
           <span className="spacer" />
@@ -506,55 +495,49 @@ function Role({ role, chosen, connections, saved, onEdit }) {
     chosen.speed && `скорость ${String(chosen.speed).replace('.', ',')}`,
   ]
   return (
-    <section className="card" aria-labelledby={`role-${role}`}>
-      <div className="card-head">
-        <div className="card-title">
-          <span className="ico" aria-hidden="true">
-            <Icon size={20} />
-          </span>
-          <div className="r-text">
-            <b id={`role-${role}`}>{ROLE_TITLE[role]}</b>
-            <span>{ROLE_ABOUT[role]}</span>
-          </div>
+    <li className="role" aria-labelledby={`role-${role}`}>
+      <div className="role-name">
+        <Icon size={18} aria-hidden="true" />
+        <div className="r-text">
+          <b id={`role-${role}`}>{ROLE_TITLE[role]}</b>
+          <span>{ROLE_ABOUT[role]}</span>
         </div>
       </div>
-      <div className="prov" style={{ borderTop: 0, paddingBottom: 0 }}>
-        <div className="r-text" style={{ flex: '1 1 260px' }}>
-          {chosen ? (
-            <>
-              <b>
-                {chosen.model || 'Модель сервера'}
-                {chosen.cloud && <span className="tag rasp">Облако</span>}
-              </b>
-              <span>{details.filter(Boolean).join(' · ')}</span>
-            </>
-          ) : (
-            <span>{ROLE_NONE[role]}</span>
-          )}
-        </div>
-        <div className="prov-acts">
-          {chosen && (
-            <button type="button" className="btn sm" disabled={check.busy} onClick={() => check.run()}>
-              {check.busy ? 'Проверка…' : 'Проверить'}
-            </button>
-          )}
-          <button type="button" className={`btn sm${chosen ? '' : ' primary'}`} onClick={onEdit}>
-            {chosen ? 'Изменить' : 'Выбрать'}
-          </button>
-          {chosen && role === 'embeddings' && (
-            <button type="button" className="btn sm ghost" disabled={clearing} onClick={() => clear()}>
-              Не использовать
-            </button>
-          )}
-        </div>
-        {(check.result || check.error) && (
-          <p className={`prov-note${check.error ? ' err' : ''}`} role="status">
-            {check.error ? `Не работает: ${check.error}` : check.result}
-          </p>
+      <div className="r-text role-model">
+        {chosen ? (
+          <>
+            <b>
+              {chosen.model || 'Модель сервера'}
+              {chosen.cloud && <span className="tag">Облако</span>}
+            </b>
+            <span>{details.filter(Boolean).join(' · ')}</span>
+          </>
+        ) : (
+          <span>{ROLE_NONE[role]}</span>
         )}
-        {clearError && <p className="err r-full">{clearError}</p>}
       </div>
-    </section>
+      <div className="prov-acts">
+        {chosen && role === 'embeddings' && (
+          <button type="button" className="btn sm ghost" disabled={clearing} onClick={() => clear()}>
+            Не использовать
+          </button>
+        )}
+        {chosen && (
+          <button type="button" className="btn sm" disabled={check.busy} onClick={() => check.run()}>
+            {check.busy ? 'Проверка…' : 'Проверить'}
+          </button>
+        )}
+        <button type="button" className={`btn sm${chosen ? '' : ' primary'}`} onClick={onEdit}>
+          {chosen ? 'Изменить' : 'Выбрать'}
+        </button>
+      </div>
+      {(check.result || check.error) && (
+        <p className={`prov-note role-note${check.error ? ' err' : ''}`} role="status">
+          {check.error ? `Не работает: ${check.error}` : check.result}
+        </p>
+      )}
+      {clearError && <p className="err">{clearError}</p>}
+    </li>
   )
 }
 
@@ -577,43 +560,36 @@ export default function Connections({ Pane }) {
   const usedBy = (c) => ROLES.filter((r) => roles[r]?.connection === c.id)
   return (
     <Pane title="Модели">
-      <p className="muted" style={{ padding: '0 4px', marginTop: -8 }}>
-        Кто распознаёт речь, отвечает, озвучивает ответы и ищет в памяти.
-      </p>
       {keyless && <FirstKey connection={keyless} fresh={nothingChosen(providers)} />}
-      {ROLES.map((role) => (
-        <Role
-          key={role}
-          role={role}
-          chosen={roles[role]}
-          connections={connections}
-          saved={saved[role] || 0}
-          onEdit={() => setEdit({ role })}
-        />
-      ))}
+      <section className="card" aria-label="Модели">
+        <ul className="roles">
+          {ROLES.map((role) => (
+            <Role
+              key={role}
+              role={role}
+              chosen={roles[role]}
+              connections={connections}
+              saved={saved[role] || 0}
+              onEdit={() => setEdit({ role })}
+            />
+          ))}
+        </ul>
+      </section>
       <section className="card" aria-labelledby="connections-h">
         <div className="card-head">
-          <div className="card-title">
-            <span className="ico" aria-hidden="true">
-              <Plug size={20} />
-            </span>
-            <div className="r-text">
-              <b id="connections-h">Подключения</b>
-              <span>Адрес сервиса и ключ к нему. Свой сервер с API, как у OpenAI, добавляется сюда же.</span>
-            </div>
-          </div>
+          <h3 id="connections-h">Подключения</h3>
           <button type="button" className="btn sm" onClick={() => setEdit({ connection: null })}>
-            <Plus size={16} aria-hidden="true" /> Добавить
+            <Plus size={15} aria-hidden="true" /> Добавить
           </button>
         </div>
         {connections.length > 0 ? (
-          <ul className="provs" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          <ul className="provs">
             {connections.map((c) => (
               <ConnectionItem key={c.id} c={c} used={usedBy(c)} onEdit={() => setEdit({ connection: c })} />
             ))}
           </ul>
         ) : (
-          <p className="faint">Подключений нет: добавьте OpenRouter или свой сервер.</p>
+          <p className="aside">Подключений нет: добавьте OpenRouter или свой сервер.</p>
         )}
       </section>
       {edit?.role && (

@@ -1,6 +1,6 @@
-// The pieces the pages share: a station's state as a dot and a word (its glyph is Flower.jsx), the switch, the segmented
-// control, the volume (a slider, the blue tile), the music (the raspberry tile), a ring going on, a duration over the
-// ring's stops, a sound picker, a dialog as a sheet, «loading», «did not load», an empty place.
+// The pieces the pages share: the switch, the segmented control, the volume (a slider, a card of ten bars), the music
+// (a player's card), a ring going on, a duration over the ring's stops, a sound picker, a dialog as a sheet,
+// «loading», «did not load», an empty place. A station's state is its flower (Flower.jsx) and a word beside it.
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import {
@@ -21,15 +21,9 @@ import {
 import { api } from '../shared/api.js'
 import { useAction, useNow } from '../shared/hooks.js'
 import { deviceName } from '../shared/store.js'
-import { active, level, nearestStop, RING_STOPS, soundTitle, span, trackTime, until } from '../shared/format.js'
+import { level, nearestStop, RING_STOPS, soundTitle, span, trackTime, until } from '../shared/format.js'
 
 export const devicePath = (id) => `/devices/${encodeURIComponent(id)}`
-
-/** The dot before a station's state: blue — on, raspberry — ringing or playing, grey — off; it pulses while busy. */
-export function Dot({ d }) {
-  const tone = !d?.online ? 'gray' : d.ring || d.music?.state === 'play' ? 'rasp' : ''
-  return <span className={`dot ${tone}${active(d) ? ' busy' : ''}`} aria-hidden="true" />
-}
 
 export function Switch({ on, onChange, label, disabled }) {
   return (
@@ -62,19 +56,24 @@ export function Seg({ items, value, onChange, label, className = '' }) {
   )
 }
 
-/** A page's head: a way back, a line over the title, the title, actions on the right. */
-export function PageHead({ back, over, title, children }) {
+/** A page's head: a way back, the title with a picture before it and a line under it, actions on the right. */
+export function PageHead({ back, icon, title, sub, children }) {
   return (
     <header className="head">
       <div className="head-text">
         {back && (
           <Link to={back.to} className="back">
-            <ChevronLeft size={18} aria-hidden="true" />
+            <ChevronLeft size={16} aria-hidden="true" />
             {back.label}
           </Link>
         )}
-        {over && <p className="over">{over}</p>}
-        <h1>{title}</h1>
+        <div className="head-title">
+          {icon}
+          <div>
+            <h1>{title}</h1>
+            {sub && <p className="head-sub">{sub}</p>}
+          </div>
+        </div>
       </div>
       {children && <div className="head-acts">{children}</div>}
     </header>
@@ -123,7 +122,7 @@ export function Hint({ label, children }) {
     >
       <button
         type="button"
-        className="btn icon"
+        className="btn ghost icon"
         aria-label={label}
         aria-expanded={open}
         aria-controls={id}
@@ -134,7 +133,7 @@ export function Hint({ label, children }) {
           by.current = ''
         }}
       >
-        <CircleHelp size={20} aria-hidden="true" />
+        <CircleHelp size={18} aria-hidden="true" />
       </button>
       {open && (
         <div className="hint-pop" id={id} role="note" aria-label={label}>
@@ -151,11 +150,7 @@ export function Hint({ label, children }) {
 export function Empty({ icon: Icon, title, children, small }) {
   return (
     <div className={`empty${small ? ' sm' : ''}`}>
-      {Icon && (
-        <span className={`ico${small ? '' : ' lg'}`} aria-hidden="true">
-          <Icon size={small ? 20 : 26} />
-        </span>
-      )}
+      {Icon && <Icon size={small ? 20 : 24} strokeWidth={1.75} aria-hidden="true" />}
       {title && <b>{title}</b>}
       {children && <p>{children}</p>}
     </div>
@@ -219,7 +214,7 @@ export function Sheet({ title, onClose, onSubmit, children, foot }) {
         <div className="sheet-head">
           <h2 id={id}>{title}</h2>
           <button type="button" className="btn ghost icon sm" onClick={onClose} aria-label="Закрыть">
-            <X size={20} aria-hidden="true" />
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
         <div className="sheet-body">{children}</div>
@@ -277,7 +272,7 @@ export function VolumeSlider({ d }) {
   return (
     <div>
       <div className="slide">
-        <Icon size={20} aria-hidden="true" />
+        <Icon size={18} aria-hidden="true" />
         <input
           className="range"
           type="range"
@@ -303,8 +298,9 @@ export function VolumeSlider({ d }) {
 
 const KEYS = { ArrowRight: 1, ArrowUp: 1, PageUp: 1, ArrowLeft: -1, ArrowDown: -1, PageDown: -1 }
 
-/** The blue tile: the volume big and ten bars, one a level, which are the control: a tap or a slide along them sets
- * it (the leftmost edge is silence), arrows from the keyboard. A finger moving up or down scrolls the page instead. */
+/** The volume as a card: its number and ten bars, one a level, which are the control: a tap or a slide along them
+ * sets it (the leftmost edge is silence), arrows from the keyboard. A finger moving up or down scrolls the page
+ * instead. */
 export function VolumeCard({ d, className = '' }) {
   const { v, move, commit, back, moving, error, known, off } = useVolume(d)
   const ref = useRef(null)
@@ -314,7 +310,7 @@ export function VolumeCard({ d, className = '' }) {
     return x < 0.35 ? 0 : Math.min(10, Math.max(1, Math.ceil(x)))
   }
   return (
-    <section className={`hero blue ${className}`} aria-label="Громкость">
+    <section className={`card vol ${className}`} aria-label="Громкость">
       <div className="vol-head">
         <span className="vol-label">Громкость</span>
         <span className="vol-num num" aria-hidden="true">
@@ -370,7 +366,7 @@ export function VolumeCard({ d, className = '' }) {
         ))}
       </div>
       {error && (
-        <p className="sub" role="alert">
+        <p className="err" role="alert">
           {error}
         </p>
       )}
@@ -380,7 +376,7 @@ export function VolumeCard({ d, className = '' }) {
 
 // ---------------------------------------------------------------- the music
 
-/** The raspberry tile: the track, where it is (drag to seek; it moves on by itself while it sounds), its keys.
+/** The music as a card: the track, where it is (drag to seek; it moves on by itself while it sounds), its keys.
  * `named`: the station's name on it (on the home page, where several may play). */
 export function PlayerCard({ d, named, className = '' }) {
   const m = d.music
@@ -417,37 +413,24 @@ export function PlayerCard({ d, named, className = '' }) {
   }
   const at = dur ? Math.min(shown, dur) : 0
   return (
-    <section className={`hero rasp ${className}`} aria-label={`Музыка: ${deviceName(d)}`}>
-      <div className="hero-top">
+    <section className={`card player ${className}`} aria-label={`Музыка: ${deviceName(d)}`}>
+      <div className="player-top">
         {named ? (
-          <Link className="pill" to={devicePath(d.id)}>
+          <Link to={devicePath(d.id)}>
             {deviceName(d)}
-            {!playing && ' · пауза'}
+            {!playing && ', пауза'}
           </Link>
         ) : (
-          <span className="pill">{playing ? 'Сейчас играет' : 'Пауза'}</span>
+          <span>{playing ? 'Сейчас играет' : 'Пауза'}</span>
         )}
-        <div className="hero-keys" style={{ gap: 8 }}>
-          <button
-            type="button"
-            className="round sm"
-            disabled={busy}
-            aria-pressed={!!m.repeat}
-            onClick={() => act(m.repeat ? 'repeat_off' : 'repeat')}
-            aria-label="Повторять трек"
-            title={m.repeat ? 'Повтор включён' : 'Повторять трек'}
-          >
-            <Repeat1 size={18} aria-hidden="true" />
-          </button>
-        </div>
       </div>
-      <div className="hero-text">
+      <div className="player-text">
         <h2>{title || 'Без названия'}</h2>
-        {artist && <p className="sub">{artist}</p>}
+        {artist && <p>{artist}</p>}
       </div>
       <div className="seek">
         <input
-          className="range thin"
+          className="range"
           type="range"
           min={0}
           max={dur || 1}
@@ -471,44 +454,56 @@ export function PlayerCard({ d, named, className = '' }) {
           <span>{dur ? trackTime(dur) : ''}</span>
         </div>
       </div>
-      <div className="hero-keys">
+      <div className="player-keys">
         <button
           type="button"
-          className="round"
+          className="key"
           disabled={busy}
           onClick={() => act('previous')}
           aria-label="Предыдущий трек"
           title="Предыдущий трек"
         >
-          <SkipBack size={22} fill="currentColor" aria-hidden="true" />
+          <SkipBack size={18} fill="currentColor" aria-hidden="true" />
         </button>
         <button
           type="button"
-          className="round big"
+          className="key main"
           disabled={busy}
           onClick={() => act(playing ? 'pause' : 'resume')}
           aria-label={playing ? 'Пауза' : 'Продолжить'}
           title={playing ? 'Пауза' : 'Продолжить'}
         >
           {playing ? (
-            <Pause size={28} fill="currentColor" aria-hidden="true" />
+            <Pause size={20} fill="currentColor" aria-hidden="true" />
           ) : (
-            <Play size={28} fill="currentColor" aria-hidden="true" />
+            <Play size={20} fill="currentColor" aria-hidden="true" />
           )}
         </button>
         <button
           type="button"
-          className="round"
+          className="key"
           disabled={busy}
           onClick={() => act('next')}
           aria-label="Следующий трек"
           title="Следующий трек"
         >
-          <SkipForward size={22} fill="currentColor" aria-hidden="true" />
+          <SkipForward size={18} fill="currentColor" aria-hidden="true" />
+        </button>
+        <span className="spacer" />
+        <button
+          type="button"
+          className="key toggle"
+          disabled={busy}
+          aria-pressed={!!m.repeat}
+          onClick={() => act(m.repeat ? 'repeat_off' : 'repeat')}
+          aria-label="Повторять трек"
+          title={m.repeat ? 'Повтор включён' : 'Повторять трек'}
+        >
+          <Repeat1 size={18} aria-hidden="true" />
         </button>
       </div>
       {error && (
-        <p className="sub" role="alert">
+        <p className="err" role="alert">
           {error}
         </p>
       )}
@@ -530,25 +525,23 @@ export function RingingCard({ d, named, className = '' }) {
   const now = useNow(1000)
   const [stop, busy, error] = useAction(() => api.stopRing(d.id))
   return (
-    <section className={`hero rasp ringing ${className}`} role="alert">
-      <div className="hero-top">
-        <span className="pill">
-          <BellRing size={16} className="ring-icon" aria-hidden="true" />
-          {named ? deviceName(d) : 'Звонок'}
-        </span>
+    <section className={`card player ringing ${className}`} role="alert">
+      <div className="ringing-top">
+        <BellRing size={16} className="ring-icon" aria-hidden="true" />
+        {named ? deviceName(d) : 'Звонок'}
       </div>
-      <div className="hero-text">
+      <div className="player-text">
         <h2>{ringTitle(d.ring)}</h2>
-        {d.ring.until > now && <p className="sub">Затихнет {until(d.ring.until, now)}</p>}
+        {d.ring.until > now && <p>Затихнет {until(d.ring.until, now)}</p>}
       </div>
       <div>
-        <button type="button" className="btn white tall" disabled={busy} onClick={() => stop()}>
-          <Square size={16} fill="currentColor" aria-hidden="true" />
+        <button type="button" className="btn stop" disabled={busy} onClick={() => stop()}>
+          <Square size={14} fill="currentColor" aria-hidden="true" />
           Выключить
         </button>
       </div>
       {error && (
-        <p className="sub" role="alert">
+        <p className="err" role="alert">
           {error}
         </p>
       )}
@@ -571,7 +564,7 @@ export function Duration({ value, onCommit, label, disabled }) {
     if (RING_STOPS[i] !== value) onCommit(RING_STOPS[i])
   }
   return (
-    <div className="slide" style={{ width: 300, maxWidth: '100%' }}>
+    <div className="slide long">
       <input
         className="range"
         type="range"
@@ -591,7 +584,7 @@ export function Duration({ value, onCommit, label, disabled }) {
         onKeyUp={commit}
         onBlur={commit}
       />
-      <output style={{ minWidth: '5.6em' }}>{span(RING_STOPS[i])}</output>
+      <output>{span(RING_STOPS[i])}</output>
     </div>
   )
 }
@@ -626,9 +619,9 @@ export function Listen({ preview, name, seconds, children }) {
   return (
     <button type="button" className="btn sm" onClick={() => preview.play(name, seconds ?? null)} aria-pressed={on}>
       {on ? (
-        <Square size={14} fill="currentColor" aria-hidden="true" />
+        <Square size={12} fill="currentColor" aria-hidden="true" />
       ) : (
-        <Play size={15} fill="currentColor" aria-hidden="true" />
+        <Play size={13} fill="currentColor" aria-hidden="true" />
       )}
       {on ? 'Остановить' : children || 'Послушать'}
     </button>

@@ -81,31 +81,27 @@ export default function MusicStats({ device, days: chosen }) {
   }
   const songs = all ? data.songs : data.songs.slice(0, 15)
   return (
-    <div
-      className={fresh ? undefined : 'stale'}
-      aria-busy={!fresh}
-      style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}
-    >
-      <div className="stats">
-        <div className="hero rasp stat">
+    <div className={`col${fresh ? '' : ' stale'}`} aria-busy={!fresh}>
+      <div className="card stats">
+        <div className="stat">
           <span>Музыка за {periodWords(days)}</span>
-          <b className="num">{minutes(t.minutes)}</b>
+          <b>{minutes(t.minutes)}</b>
         </div>
-        <div className="card stat">
+        <div className="stat">
           <span>В среднем за день</span>
-          <b className="num">{minutes(t.minutes / days)}</b>
+          <b>{minutes(t.minutes / days)}</b>
         </div>
-        <div className="card stat">
+        <div className="stat">
           <span>Прослушано треков</span>
-          <b className="num">{t.played}</b>
+          <b>{t.played}</b>
         </div>
-        <div className="card stat">
+        <div className="stat">
           <span>До конца</span>
-          <b className="num">{t.finished}</b>
+          <b>{t.finished}</b>
         </div>
-        <div className="card stat">
+        <div className="stat">
           <span>Пропущено</span>
-          <b className="num">{t.skipped}</b>
+          <b>{t.skipped}</b>
         </div>
       </div>
 
@@ -134,9 +130,7 @@ export default function MusicStats({ device, days: chosen }) {
         <section className="card grow-2" aria-labelledby="m-songs">
           <div className="card-head">
             <h2 id="m-songs">Треки</h2>
-            <span className="faint" style={{ fontSize: 13 }}>
-              Прослушано
-            </span>
+            <span className="side-note">Прослушано</span>
           </div>
           {data.songs.length ? (
             <>

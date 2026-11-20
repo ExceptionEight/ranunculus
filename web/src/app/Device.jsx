@@ -1,7 +1,7 @@
-// A station's page. On top what it does now, in the reference's two tiles: the raspberry one is a ring going on, or
-// the music, or else what it does (what is said while it talks; its next alarm and last request when quiet); the blue
-// one is the volume. Its timers under them; then its alarms and wakes. Its conversations (the chat button) and its
-// own settings (the gear) are pages of their own.
+// A station's page. Its flower, name and state on top; then what it does now, in two cards: a ring going on, or the
+// music, or else the talk as it goes (its next alarm and last request when quiet), and the volume beside it. Its
+// timers under them; then its alarms and wakes. Its conversations and its own settings (the buttons in the head) are
+// pages of their own.
 // Room is kept for what comes next: «Слушать» and «Записать» beside the buttons, «Записи» among the tabs.
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useParams } from 'react-router'
@@ -18,8 +18,8 @@ import {
 import { api } from '../shared/api.js'
 import { useAction, useNow } from '../shared/hooks.js'
 import { chatOf, deviceName, getState, loadChat, useStore } from '../shared/store.js'
-import { clock, day, lastSeen, ringDay, soundTitle, span, status, trackTime } from '../shared/format.js'
-import { devicePath, Dot, Empty, Loading, PageHead, PlayerCard, RingingCard, VolumeCard } from './ui.jsx'
+import { clock, day, lastSeen, ringDay, span, status, trackTime } from '../shared/format.js'
+import { devicePath, Empty, Loading, PageHead, PlayerCard, RingingCard, VolumeCard } from './ui.jsx'
 import { Glyph } from './Flower.jsx'
 import Chat, { Typing } from './Chat.jsx'
 import Alarms from './Alarms.jsx'
@@ -68,19 +68,16 @@ function Station({ d }) {
     <main className="page">
       <PageHead
         back={{ to: '/', label: 'Главная' }}
-        over={
-          <>
-            <Dot d={d} />
-            {d.online ? status(d) : lastSeen(d.last_seen) || status(d)}
-          </>
-        }
+        icon={<Glyph device={d} size={44} />}
         title={deviceName(d)}
+        sub={d.online ? status(d) : lastSeen(d.last_seen) || status(d)}
       >
-        <Link to={`${base}/chat`} className="btn icon" aria-label="Разговоры" title="Разговоры">
-          <MessagesSquare size={20} aria-hidden="true" />
+        <Link to={`${base}/chat`} className="btn fold" aria-label="Разговоры" title="Разговоры">
+          <MessagesSquare size={16} aria-hidden="true" />
+          <span>Разговоры</span>
         </Link>
         <Link to={`${base}/settings`} className="btn icon" aria-label="Настройки колонки" title="Настройки колонки">
-          <SlidersHorizontal size={20} aria-hidden="true" />
+          <SlidersHorizontal size={16} aria-hidden="true" />
         </Link>
       </PageHead>
 
@@ -99,7 +96,7 @@ function Station({ d }) {
       <Timers d={d} />
 
       <div className="tabs-line">
-        <nav className="seg big" aria-label="Разделы колонки">
+        <nav className="seg" aria-label="Разделы колонки">
           <NavLink to={base} end>
             Будильники
           </NavLink>
@@ -117,8 +114,8 @@ function Station({ d }) {
   )
 }
 
-/** When nothing plays or rings: what the station does; while it talks, what is said, as it comes; when quiet, its
- * next alarm and when it was last asked something. */
+/** When nothing plays or rings: while the station talks, what is said, as it comes; when quiet, its next alarm and
+ * when it was last asked something; a station with neither yet: nothing, the volume stands alone. */
 function LiveCard({ d }) {
   const live = useStore((s) => s.live[d.id])
   const chat = useStore(chatOf(d.id))
@@ -132,12 +129,9 @@ function LiveCard({ d }) {
   const heard = live && (live.text || live.heard)
   const said = live?.said.join(' ')
   const talking = live || d.panel === 'listen'
+  if (!talking && !next && !last) return null
   return (
     <section className="card live-card grow-2" aria-label="Что происходит">
-      <div className="live-state">
-        <Glyph device={d} size={56} />
-        <b>{status(d)}</b>
-      </div>
       {talking ? (
         <div className="live-lines" aria-live="polite">
           {live ? (
@@ -157,22 +151,18 @@ function LiveCard({ d }) {
         <div className="rows">
           {next && (
             <Link to={devicePath(d.id)} className="r live-row">
-              <span className="ico sm" aria-hidden="true">
-                <AlarmClock size={18} />
-              </span>
+              <AlarmClock size={18} aria-hidden="true" />
               <span className="r-text">
                 <b>
                   {next.label || 'Будильник'} {ringDay(next.next, now)} в {next.time}
                 </b>
               </span>
-              <ChevronRight size={18} aria-hidden="true" />
+              <ChevronRight size={16} aria-hidden="true" />
             </Link>
           )}
           {last && (
             <Link to={`${devicePath(d.id)}/chat`} className="r live-row">
-              <span className="ico sm" aria-hidden="true">
-                <MessageCircle size={18} />
-              </span>
+              <MessageCircle size={18} aria-hidden="true" />
               <span className="r-text">
                 <b>{last.text ? `«${last.text}»` : 'Последний запрос'}</b>
                 <span>
@@ -182,6 +172,7 @@ function LiveCard({ d }) {
                   в {clock(last.t)}
                 </span>
               </span>
+              <ChevronRight size={16} aria-hidden="true" />
             </Link>
           )}
         </div>
@@ -195,10 +186,8 @@ function TimerChip({ t }) {
   const [cancel, busy, error] = useAction(() => api.cancelTimer(t.id))
   return (
     <div className="timer-chip">
-      <span className="ico sm">
-        <TimerIcon size={18} aria-hidden="true" />
-      </span>
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <TimerIcon size={16} aria-hidden="true" />
+      <div>
         <span className="left">{trackTime(t.at - now)}</span>
         <span>
           {t.label ? `«${t.label}»` : 'Таймер'} на {span(t.seconds)}
@@ -213,7 +202,7 @@ function TimerChip({ t }) {
         aria-label="Отменить таймер"
         title="Отменить"
       >
-        <X size={18} aria-hidden="true" />
+        <X size={16} aria-hidden="true" />
       </button>
     </div>
   )
@@ -250,33 +239,34 @@ function Name({ d }) {
     setSaved(true)
   })
   return (
-    <form
-      className="form-acts"
-      style={{ flexWrap: 'nowrap', width: '100%' }}
-      onSubmit={(e) => {
-        e.preventDefault()
-        save()
-      }}
-    >
-      <label className="sr-only" htmlFor="dev-name">
-        Название
-      </label>
-      <input
-        id="dev-name"
-        className="field"
-        value={name}
-        maxLength={60}
-        placeholder={d.id}
-        onChange={(e) => {
-          setName(e.target.value)
-          setSaved(false)
+    <>
+      <form
+        className="inline-form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          save()
         }}
-      />
-      <button className="btn" disabled={busy || name.trim() === (d.name || '')}>
-        {saved ? 'Сохранено' : 'Сохранить'}
-      </button>
-      {error && <p className="err">{error}</p>}
-    </form>
+      >
+        <label className="sr-only" htmlFor="dev-name">
+          Название
+        </label>
+        <input
+          id="dev-name"
+          className="field"
+          value={name}
+          maxLength={60}
+          placeholder={d.id}
+          onChange={(e) => {
+            setName(e.target.value)
+            setSaved(false)
+          }}
+        />
+        <button className="btn" disabled={busy || name.trim() === (d.name || '')}>
+          {saved ? 'Сохранено' : 'Сохранить'}
+        </button>
+      </form>
+      {error && <p className="err r-full">{error}</p>}
+    </>
   )
 }
 
@@ -305,7 +295,7 @@ function StationSettings({ d }) {
             <div className="r-text">
               <b>Название</b>
             </div>
-            <div className="r-ctl" style={{ width: 360 }}>
+            <div className="r-ctl name-ctl">
               <Name d={d} />
             </div>
           </div>
@@ -322,10 +312,6 @@ function StationSettings({ d }) {
 
       <section className="card" aria-labelledby="st-sound">
         <h2 id="st-sound">Проверка звука</h2>
-        <p className="about">
-          Пять секунд звонка на колонке. Звуки: таймер «{soundTitle(settings?.timer?.sound || 'chime')}», будильник «
-          {soundTitle(settings?.alarm?.sound || 'chime')}». <Link to="/settings/sounds">Изменить</Link>
-        </p>
         <div className="form-acts">
           <TryRing d={d} sound={settings?.timer?.sound} label="Звонок таймера" />
           <TryRing d={d} sound={settings?.alarm?.sound} label="Звонок будильника" />

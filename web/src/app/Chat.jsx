@@ -24,7 +24,7 @@ import { useChat } from '../shared/hooks.js'
 import { deviceName } from '../shared/store.js'
 import { clock, sameDay, secs, status } from '../shared/format.js'
 import { describe } from '../shared/calls.js'
-import { devicePath, Dot, Empty, Loading } from './ui.jsx'
+import { devicePath, Empty, Loading } from './ui.jsx'
 import { Glyph } from './Flower.jsx'
 import { tz } from '../shared/zone.js'
 
@@ -80,7 +80,7 @@ function Calls({ calls }) {
             className={`call${c.failed ? ' failed' : ''}`}
             title={c.failed ? `${c.direction} Не получилось.` : c.direction}
           >
-            <Icon size={14} aria-hidden="true" />
+            <Icon size={13} aria-hidden="true" />
             {c.label[0]?.toUpperCase()}
             {c.label.slice(1)}
           </span>
@@ -178,15 +178,12 @@ export default function Chat({ device: d }) {
     <main className="chat-page" aria-label={`Разговоры: ${deviceName(d)}`}>
       <header className="chat-head">
         <Link to={devicePath(d.id)} className="btn ghost icon" aria-label="Назад к колонке" title="Назад">
-          <ChevronLeft size={22} aria-hidden="true" />
+          <ChevronLeft size={20} aria-hidden="true" />
         </Link>
-        <Glyph device={d} size={40} />
+        <Glyph device={d} size={32} />
         <div className="chat-title">
           <h1>{deviceName(d)}</h1>
-          <span>
-            <Dot d={d} />
-            {status(d)}
-          </span>
+          <span>{status(d)}</span>
         </div>
       </header>
       <div className="chat-scroll" ref={scrollRef}>
@@ -215,7 +212,7 @@ export default function Chat({ device: d }) {
       </div>
       {!atBottom && items.length > 0 && (
         <button type="button" className="to-latest" onClick={toBottom}>
-          <ArrowDown size={16} aria-hidden="true" />К последним
+          <ArrowDown size={15} aria-hidden="true" />К последним
         </button>
       )}
     </main>

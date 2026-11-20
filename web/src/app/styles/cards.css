@@ -18,33 +18,42 @@
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+  min-width: 0;
 }
 
 .grow-2 {
-  flex: 2 1 520px;
+  flex: 2 1 480px;
 }
 
 .grow-1 {
-  flex: 1 1 280px;
+  flex: 1 1 260px;
 }
 
 .card {
   position: relative;
   min-width: 0;
-  padding: 24px;
+  padding: 20px;
   border-radius: var(--r-card);
-  background: var(--glass);
-  border: 1px solid var(--glass-edge);
-  box-shadow: var(--shadow);
+  background: var(--surface);
+  border: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
+/* a card that is only a list: its rows bring their own space */
 .card.flat {
   gap: 0;
-  padding-top: 12px;
-  padding-bottom: 12px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+/* a list whose rows are pressed: their hover reaches the card's edges and is cut by its corners */
+.card.list {
+  gap: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
 }
 
 .card-head {
@@ -58,39 +67,34 @@
 .card h2,
 .card h3,
 .section-title {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.section-title {
-  padding: 8px 4px 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .card .about {
   color: var(--ink-2);
+  font-size: 13px;
+  margin-top: -10px;
+}
+
+/* a quiet line in a card: nothing here yet, nothing to do */
+.card .faint {
   font-size: 14px;
-  margin-top: -8px;
 }
 
 @media (max-width: 600px) {
-  :root {
-    --gap: 16px;
-    --r-card: 24px;
-  }
-
   .card {
-    padding: 20px;
+    padding: 16px;
+  }
+
+  .card.flat {
+    padding-top: 4px;
+    padding-bottom: 4px;
   }
 }
 
-.grid-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--gap);
-}
-
-/* rows inside a card: what it is on the left, its control on the right (the reference's «Режимы») */
+/* rows inside a card: what it is on the left, its control on the right */
 .rows {
   display: flex;
   flex-direction: column;
@@ -100,14 +104,22 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 14px 0;
+  padding: 12px 0;
   border-top: 1px solid var(--line);
 }
 
 .rows > .r:first-child,
-.card.flat > .r:first-child,
-.card-head + .rows > .r:first-child {
+.card.flat > .r:first-child {
   border-top: 0;
+}
+
+/* the first row begins where the card's own space ends, and the last one ends where it begins */
+.card:not(.flat) > .rows > .r:first-child {
+  padding-top: 0;
+}
+
+.card:not(.flat) > .rows:last-child > .r:last-child {
+  padding-bottom: 0;
 }
 
 .r-text {
@@ -119,8 +131,8 @@
 }
 
 .r-text b {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .r-text span,
@@ -137,11 +149,21 @@
   justify-content: flex-end;
   gap: 8px;
   max-width: 100%;
+  font-size: 14px;
 }
 
 .r-ctl .field {
-  width: 300px;
+  width: 280px;
   max-width: 100%;
+}
+
+/* a name with its «save»: wider than a field alone */
+.r-ctl.name-ctl {
+  width: 360px;
+}
+
+.r.wrap {
+  flex-wrap: wrap;
 }
 
 .r.wide {
@@ -153,18 +175,29 @@
   justify-content: flex-start;
 }
 
+/* a row's head: a picture and a name, larger than the rows under it */
+.r.lead {
+  gap: 14px;
+}
+
+.r.lead .r-text b {
+  font-size: 16px;
+  font-weight: 600;
+}
+
 @media (max-width: 640px) {
   .r.stack-m {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
   }
 
   .r.stack-m .r-ctl {
     justify-content: flex-start;
   }
 
-  .r.stack-m .r-ctl .field {
+  .r.stack-m .r-ctl .field,
+  .r.stack-m .r-ctl.name-ctl {
     width: 100%;
   }
 }

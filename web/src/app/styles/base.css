@@ -23,14 +23,6 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: var(--backdrop);
-  pointer-events: none;
-}
-
 button,
 input,
 select,
@@ -40,7 +32,7 @@ textarea {
 }
 
 a {
-  color: var(--rasp-ink);
+  color: var(--accent-ink);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
@@ -50,8 +42,8 @@ a:hover {
 }
 
 :focus-visible {
-  outline: 2px solid var(--rasp-ink);
-  outline-offset: 3px;
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 
 h1,
@@ -63,10 +55,10 @@ p {
 }
 
 code {
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 13px;
-  padding: 2px 8px;
-  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  padding: 2px 6px;
+  border-radius: 6px;
   background: var(--fill);
   overflow-wrap: anywhere;
 }
@@ -87,24 +79,24 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
-.muted {
-  color: var(--ink-2);
+.faint {
+  color: var(--ink-3);
 }
 
-.faint {
+/* a line of explanation under a control or a list */
+.aside {
+  font-size: 13px;
   color: var(--ink-3);
 }
 
 .err {
   color: var(--bad);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
 }
 
 .ok {
   color: var(--ok);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
 }
 
 .stale {

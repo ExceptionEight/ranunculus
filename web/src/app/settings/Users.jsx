@@ -32,18 +32,14 @@ export default function Users() {
         {data && (
           <div className="rows">
             {data.items.map((u) => (
-              <div className="r" key={u.id} style={{ flexWrap: 'wrap' }}>
+              <div className="r wrap" key={u.id}>
                 <span className="avatar" aria-hidden="true">
                   {[...u.name][0]}
                 </span>
                 <div className="r-text">
                   <b>
                     {u.name}
-                    {u.me && (
-                      <span className="tag rasp" style={{ marginLeft: 8 }}>
-                        Вы
-                      </span>
-                    )}
+                    {u.me && <span className="tag">Вы</span>}
                   </b>
                   <span>{u.via ? `Вход через ${u.via}` : 'Вход по паролю'}</span>
                 </div>
@@ -56,7 +52,7 @@ export default function Users() {
                       aria-label={`Удалить «${u.name}»`}
                       title="Удалить"
                     >
-                      <Trash2 size={17} aria-hidden="true" />
+                      <Trash2 size={16} aria-hidden="true" />
                     </button>
                   </div>
                 )}
@@ -85,8 +81,7 @@ export default function Users() {
         {removeError && <p className="err">{removeError}</p>}
         {adding ? (
           <form
-            className="form"
-            style={{ borderTop: '1px solid var(--line)', paddingTop: 16 }}
+            className="form below"
             onSubmit={(e) => {
               e.preventDefault()
               add()

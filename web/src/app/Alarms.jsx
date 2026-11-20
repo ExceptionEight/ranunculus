@@ -1,7 +1,7 @@
-// A station's alarms as cards (a time, once or on chosen weekdays; each may have its own sound, length, rise and
-// volume, or take the defaults from Settings → Звуки) and a card to add one. Its timers are in the strip above (Device.jsx).
+// A station's alarms as a list (a time, once or on chosen weekdays; each may have its own sound, length, rise and
+// volume, or take the defaults from Settings → Звуки), its last row adds one. Its timers are in the strip above
+// (Device.jsx).
 import { useState } from 'react'
-import { Link } from 'react-router'
 import { Plus, Trash2 } from 'lucide-react'
 import { api } from '../shared/api.js'
 import { useAction, useNow, useSounds } from '../shared/hooks.js'
@@ -59,7 +59,7 @@ function Editor({ device, alarm, onClose }) {
         <>
           {alarm && (
             <button type="button" className="btn ghost danger" disabled={removing} onClick={() => remove()}>
-              <Trash2 size={17} aria-hidden="true" />
+              <Trash2 size={16} aria-hidden="true" />
               Удалить
             </button>
           )}
@@ -186,25 +186,24 @@ function Editor({ device, alarm, onClose }) {
   )
 }
 
-// Each card keeps its own clock (one on top of the page would render all of it again every second): an alarm only
+// Each row keeps its own clock (one on top of the page would render all of it again every second): an alarm only
 // needs «сегодня» to turn into «завтра».
-function AlarmCard({ a, onOpen }) {
+function AlarmRow({ a, onOpen }) {
   const now = useNow(30000)
   const [toggle, busy, error] = useAction((on) => api.changeAlarm(a.id, { enabled: on }))
   return (
-    <article className={`card alarm${a.enabled ? '' : ' off'}`}>
+    <li className={`alarm${a.enabled ? '' : ' off'}`}>
       <button type="button" className="alarm-open" onClick={onOpen} aria-label={`Будильник на ${a.time}, изменить`} />
-      <div className="alarm-top">
-        <span className="alarm-time">{a.time}</span>
-        <Switch on={a.enabled} disabled={busy} onChange={(on) => toggle(on)} label={`Будильник на ${a.time}`} />
-      </div>
+      <span className="alarm-time">{a.time}</span>
       <div className="alarm-what">
         <b>{a.label || 'Будильник'}</b>
-        <span>{daysWords(a.days)[0].toUpperCase() + daysWords(a.days).slice(1)}</span>
-        <span>{a.enabled ? `Зазвонит ${ringDay(a.next, now)}` : 'Выключен'}</span>
+        <span>
+          {cap(daysWords(a.days))}, {a.enabled ? `зазвонит ${ringDay(a.next, now)}` : 'выключен'}
+        </span>
+        {error && <span className="err">{error}</span>}
       </div>
-      {error && <p className="err">{error}</p>}
-    </article>
+      <Switch on={a.enabled} disabled={busy} onChange={(on) => toggle(on)} label={`Будильник на ${a.time}`} />
+    </li>
   )
 }
 
@@ -214,21 +213,19 @@ export default function Alarms({ d }) {
   const mine = alarms.filter((a) => a.device === d.id)
   return (
     <>
-      <div className="grid-cards">
-        {mine.map((a) => (
-          <AlarmCard key={a.id} a={a} onOpen={() => setOpen(a)} />
-        ))}
-        <button type="button" className="alarm-new" onClick={() => setOpen('new')}>
-          <span className="ico">
-            <Plus size={22} aria-hidden="true" />
-          </span>
+      <section className="card list" aria-label="Будильники">
+        {mine.length > 0 && (
+          <ul className="alarms">
+            {mine.map((a) => (
+              <AlarmRow key={a.id} a={a} onOpen={() => setOpen(a)} />
+            ))}
+          </ul>
+        )}
+        <button type="button" className="row-add" onClick={() => setOpen('new')}>
+          <Plus size={18} aria-hidden="true" />
           Новый будильник
         </button>
-      </div>
-      <p className="faint" style={{ padding: '0 4px', fontSize: 14 }}>
-        Звонок выключается голосом или касанием колонки. Звук и длительность по умолчанию:{' '}
-        <Link to="/settings/sounds">Настройки → Звуки</Link>.
-      </p>
+      </section>
 
       {open && <Editor device={d.id} alarm={open === 'new' ? null : open} onClose={() => setOpen(null)} />}
     </>
