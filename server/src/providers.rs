@@ -3,6 +3,8 @@
 //! model that answers (llm), the voice (tts), the vectors the memory is searched by (embeddings). Kept in server.db
 //! (the keys never leave the server). Every station uses the same ones; a change counts from the next request:
 //! nothing is restarted.
+//! A connection to Anthropic's API (Claude) answers in its own way (claude.rs) and only answers: it has no recognition,
+//! voice or vectors.
 //! The first start makes one connection, OpenRouter, without a key. Once the key is given and nothing is chosen yet,
 //! every role gets its model of DEFAULTS: the installation works at once, and each is the user's to change. Never
 //! again after that: a role given up (the memory) stays given up, and a home installation that adds OpenRouter for one
@@ -104,6 +106,14 @@ pub fn endpoint(c: &ConnectionRow, r: &RoleRow) -> Endpoint {
 }
 
 pub fn llm_of(c: &ConnectionRow, r: &RoleRow) -> Llm {
+    if crate::claude::is_anthropic(&c.url) {
+        return Llm::claude(
+            &crate::claude::base(&c.url),
+            &r.model,
+            &c.key,
+            r.extra.as_object().cloned().unwrap_or_default(),
+        );
+    }
     Llm::new(
         &format!("{}/chat/completions", c.url.trim_end_matches('/')),
         &r.model,
@@ -115,7 +125,7 @@ pub fn llm_of(c: &ConnectionRow, r: &RoleRow) -> Llm {
 /// A connection as the API shows it: the key only as «set, ends with …».
 pub fn public(c: &ConnectionRow) -> Value {
     json!({"id": c.id, "name": c.name, "url": c.url, "key_set": !c.key.is_empty(), "key_tail": tail(&c.key),
-           "cloud": cloud(&c.url), "openrouter": is_openrouter(&c.url)})
+           "cloud": cloud(&c.url), "openrouter": is_openrouter(&c.url), "anthropic": crate::claude::is_anthropic(&c.url)})
 }
 
 /// A key's (a token's) last four characters, to tell which one is kept; of a short one, nothing.

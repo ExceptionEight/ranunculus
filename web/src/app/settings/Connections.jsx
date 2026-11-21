@@ -1,4 +1,5 @@
-// Settings → Модели. The connections: a service's address and its key, given once (OpenRouter, a server at home).
+// Settings → Модели. The connections: a service's address and its key, given once (OpenRouter, a server at home,
+// Anthropic for Claude — it only answers, and says how much each of its models may think).
 // The roles: who hears (recognition), answers (a language model), speaks (a voice) and finds past talks by meaning
 // (embeddings) — each one model of one of the connections, used by every station. Keys go in and never come back.
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -14,8 +15,24 @@ const OPENROUTER = { label: 'OpenRouter', name: 'OpenRouter', url: 'https://open
 const SERVERS = [
   { label: 'Ollama на этом компьютере', name: 'Ollama', url: 'http://host.docker.internal:11434/v1' },
   { label: 'OpenAI', name: 'OpenAI', url: 'https://api.openai.com/v1', needsKey: true },
+  { label: 'Anthropic (Claude)', name: 'Anthropic', url: 'https://api.anthropic.com/v1', needsKey: true },
   { label: 'Другой сервер с API, совместимым с OpenAI', name: '', url: '' },
 ]
+
+/** How much Claude thinks (claude.rs, EFFORTS): what the model takes of these, and off where it can be. */
+const EFFORT = { low: 'Низкий', medium: 'Средний', high: 'Высокий', xhigh: 'Очень высокий', max: 'Максимальный' }
+
+/** A Claude role's extra fields → how much it thinks: '' (as the model does), a level of EFFORT, or 'off'. */
+function effortOf(extra) {
+  if (['disabled', 'between_tools'].includes(extra?.thinking?.type)) return 'off'
+  return extra?.output_config?.effort || ''
+}
+
+/** …and back, as Claude takes them; `off`: how this model turns its thinking off. */
+function effortExtra(effort, off) {
+  if (effort === 'off') return { thinking: { type: off || 'disabled' } }
+  return effort ? { output_config: { effort } } : {}
+}
 
 const seconds = (s) => s.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
 const price = (x) =>
@@ -24,6 +41,7 @@ const price = (x) =>
 /** What a model of a list costs and cannot do, in a line. */
 function about(m, role) {
   const parts = []
+  if (m.efforts && m.name !== m.id) parts.push(m.name)
   if (role === 'llm' && m.in != null) parts.push(`$${price(m.in)} / $${price(m.out)} за 1 млн токенов`)
   if (role === 'embeddings' && m.in != null) parts.push(`$${price(m.in)} за 1 млн токенов`)
   if (m.tools === false) parts.push('не умеет ставить таймеры и включать музыку')
@@ -331,20 +349,26 @@ function useCheck(role) {
   return { run, busy, result, error }
 }
 
-function RoleEditor({ role, chosen, connections, onClose }) {
+function RoleEditor({ role, chosen, connections: all, onClose }) {
+  // Claude only answers
+  const connections = role === 'llm' ? all : all.filter((c) => !c.anthropic)
   const [f, setF] = useState(() => ({
     connection: chosen?.connection ?? (connections.find((c) => c.key_set) || connections[0])?.id ?? '',
     model: chosen?.model ?? '',
     voice: chosen?.voice ?? '',
     speed: chosen?.speed ?? '',
+    effort: effortOf(chosen?.extra),
   }))
   const [list, setList] = useState([]) // the connection's models, once they are known
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }))
   const connection = connections.find((c) => c.id === Number(f.connection))
-  const voices = list.find((m) => m.id === f.model)?.voices || []
+  const model = list.find((m) => m.id === f.model)
+  const voices = model?.voices || []
+  const claude = role === 'llm' && !!connection?.anthropic
   const body = () => {
     const b = { connection: Number(f.connection), model: f.model.trim() }
     if (role === 'tts') Object.assign(b, { voice: f.voice.trim(), speed: f.speed === '' ? null : Number(f.speed) })
+    if (claude) b.extra = effortExtra(f.effort, model?.off)
     return b
   }
   const pick = (m) =>
@@ -353,6 +377,11 @@ function RoleEditor({ role, chosen, connections, onClose }) {
       model: m.id,
       // another model, other voices: its first one, to be changed below
       voice: m.voices?.length && !m.voices.includes(x.voice) ? m.voices[0] : x.voice,
+      // what this one does not take is not kept
+      effort:
+        (x.effort === 'off' && !m.off) || (x.effort && x.effort !== 'off' && !m.efforts?.includes(x.effort))
+          ? ''
+          : x.effort,
     }))
   const [save, busy, error] = useAction(async () => {
     await api.setRole(role, body())
@@ -393,7 +422,7 @@ function RoleEditor({ role, chosen, connections, onClose }) {
           value={f.connection}
           onChange={(e) => {
             setList([])
-            setF((x) => ({ ...x, connection: e.target.value, model: '', voice: '' }))
+            setF((x) => ({ ...x, connection: e.target.value, model: '', voice: '', effort: '' }))
           }}
         >
           {connections.map((c) => (
@@ -427,6 +456,20 @@ function RoleEditor({ role, chosen, connections, onClose }) {
           />
         )}
       </div>
+      {claude && (model?.efforts?.length > 0 || model?.off) && (
+        <label className="field-wrap">
+          <span>Уровень размышлений</span>
+          <select className="field" value={f.effort} onChange={(e) => set('effort')(e.target.value)}>
+            <option value="">Как у модели</option>
+            {model.efforts.map((e) => (
+              <option key={e} value={e}>
+                {EFFORT[e]}
+              </option>
+            ))}
+            {model.off && <option value="off">Без размышлений</option>}
+          </select>
+        </label>
+      )}
       {role === 'tts' && (
         <div className="form-pair">
           <label className="field-wrap">
@@ -489,8 +532,10 @@ function Role({ role, chosen, connections, saved, onEdit }) {
     if (saved && role !== 'tts') check.run()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per save: `check` is new at every render
   }, [saved])
+  const effort = connection?.anthropic && effortOf(chosen?.extra)
   const details = chosen && [
     connection?.name,
+    effort && (effort === 'off' ? 'без размышлений' : `уровень размышлений: ${EFFORT[effort].toLowerCase()}`),
     chosen.voice && `голос ${chosen.voice}`,
     chosen.speed && `скорость ${String(chosen.speed).replace('.', ',')}`,
   ]

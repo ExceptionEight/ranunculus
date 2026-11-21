@@ -249,6 +249,47 @@ async fn a_connection_in_use_stays_and_only_the_memory_is_given_up() {
 }
 
 #[tokio::test]
+async fn claude_answers_and_does_nothing_else() {
+    let (app, d) = test_app("claude");
+    let ps = app.shared.providers.clone();
+    let add = |v: Value| add_connection(State(app.clone()), json_h(), Bytes::from(v.to_string()));
+    let put = |role: &str, v: Value| {
+        set_role(State(app.clone()), Path(role.to_string()), json_h(), Bytes::from(v.to_string()))
+    };
+    let j = body(
+        add(json!({"name": "Anthropic", "url": "https://api.anthropic.com/v1/", "key": "sk-ant-api03-test-wxyz"}))
+            .await,
+    )
+    .await;
+    let c = j; // the connection made, as the UI is shown it
+    assert_eq!(
+        (c["anthropic"].as_bool(), c["cloud"].as_bool(), c["key_tail"].as_str()),
+        (Some(true), Some(true), Some("wxyz"))
+    );
+    let id = c["id"].as_i64().unwrap();
+    // no recognition, voice or vectors there
+    for role in ["asr", "tts", "embeddings"] {
+        assert_eq!(status(put(role, json!({"connection": id, "model": "claude-haiku-5-5"})).await), 400, "{role}");
+    }
+    // the model that answers, with how much it thinks
+    let j = body(
+        put(
+            "llm",
+            json!({"connection": id, "model": "claude-haiku-5-5", "extra": {"output_config": {"effort": "high"}}}),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(j["roles"]["llm"]["extra"], json!({"output_config": {"effort": "high"}}));
+    let llm = ps.llm().unwrap();
+    assert_eq!(
+        (llm.url.as_str(), llm.model.as_str(), llm.cloud()),
+        ("https://api.anthropic.com/v1/messages", "claude-haiku-5-5", true)
+    );
+    std::fs::remove_dir_all(d).ok();
+}
+
+#[tokio::test]
 async fn a_listener_behind_is_said_hello_again() {
     let (tx, rx) = broadcast::channel(4);
     let n = Arc::new(std::sync::atomic::AtomicUsize::new(0));

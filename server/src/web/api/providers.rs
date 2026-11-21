@@ -137,6 +137,14 @@ fn role_fields(app: &App, v: &Value, r: &mut RoleRow) -> Result<ConnectionRow, F
             other => return Err(bad(format!("{other}: такого поля нет"))),
         }
     }
+    let c = app
+        .shared
+        .providers
+        .connection(r.connection)
+        .ok_or_else(|| Fail::new(StatusCode::NOT_FOUND, format!("нет подключения {}", r.connection)))?;
+    if r.role != "llm" && crate::claude::is_anthropic(&c.url) {
+        return Err(bad("Подключение к Anthropic годится только для ответов"));
+    }
     if (r.connection, r.model.as_str()) != (was.0, was.1.as_str()) {
         let ours = DEFAULTS.iter().find(|(role, model, ..)| *role == r.role && *model == r.model);
         if !o.contains_key("extra") {
@@ -146,10 +154,7 @@ fn role_fields(app: &App, v: &Value, r: &mut RoleRow) -> Result<ConnectionRow, F
             r.voice = ours.map(|d| d.2.to_string()).unwrap_or_default();
         }
     }
-    app.shared
-        .providers
-        .connection(r.connection)
-        .ok_or_else(|| Fail::new(StatusCode::NOT_FOUND, format!("нет подключения {}", r.connection)))
+    Ok(c)
 }
 
 /// What the role uses now, or an empty one to fill in.
@@ -308,6 +313,35 @@ pub(super) async fn models(State(app): State<App>, Path(id): Path<i64>, h: Heade
         .connection(id)
         .ok_or_else(|| Fail::new(StatusCode::NOT_FOUND, "нет такого подключения"))?;
     let http = crate::http().timeout(Duration::from_secs(20)).build().map_err(|e| failed(e.to_string()))?;
+    let gone = |e: String| Fail::new(StatusCode::BAD_GATEWAY, e);
+    if crate::claude::is_anthropic(&c.url) {
+        // Claude only answers; its list says what each model takes (effort, thinking off), page by page
+        if role != "llm" {
+            return ok(json!({"items": [], "cloud": true}));
+        }
+        let (url, mut items, mut after) = (format!("{}/models", crate::claude::base(&c.url)), vec![], None::<String>);
+        loop {
+            let mut req = http
+                .get(&url)
+                .header("x-api-key", &c.key)
+                .header("anthropic-version", crate::claude::VERSION)
+                .query(&[("limit", "1000")]);
+            if let Some(a) = &after {
+                req = req.query(&[("after_id", a)]);
+            }
+            let r = req.send().await.map_err(|e| gone(format!("{url}: {e}")))?;
+            if !r.status().is_success() {
+                return Err(gone(format!("{url}: HTTP {}", r.status())));
+            }
+            let j: Value = r.json().await.map_err(|e| gone(format!("{url}: {e}")))?;
+            items.extend(crate::claude::models(&j));
+            match (j["has_more"].as_bool(), j["last_id"].as_str()) {
+                (Some(true), Some(last)) if items.len() < 5000 => after = Some(last.to_string()),
+                _ => break,
+            }
+        }
+        return ok(json!({"items": items, "cloud": true}));
+    }
     let mut req = http.get(format!("{}/models", c.url));
     // OpenRouter lists the models that answer unless asked for another kind; a server that does not know the
     // question lists everything
@@ -318,7 +352,6 @@ pub(super) async fn models(State(app): State<App>, Path(id): Path<i64>, h: Heade
     if !c.key.is_empty() {
         req = req.bearer_auth(&c.key);
     }
-    let gone = |e: String| Fail::new(StatusCode::BAD_GATEWAY, e);
     let r = req.send().await.map_err(|e| gone(format!("{}: {e}", c.url)))?;
     if !r.status().is_success() {
         return Err(gone(format!("{}/models: HTTP {}", c.url, r.status())));

@@ -1,8 +1,10 @@
 //! An OpenAI-compatible chat completion: streamed (the text as it comes, for sentence-by-sentence speech, and the
 //! tool calls at the end) or whole (the note-taker, the prompt warm-up). OpenRouter, Ollama, llama.cpp — anything
-//! with /v1/chat/completions.
+//! with /v1/chat/completions; and Claude, by Anthropic's own API, translated both ways (claude.rs).
+use crate::claude;
 use futures_util::StreamExt;
 use serde_json::{json, Map, Value};
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -13,6 +15,8 @@ pub struct Llm {
     key: String,
     extra: Map<String, Value>, // the provider's own request fields (OpenRouter: reasoning, provider)
     cloud: bool,               // away from the house: providers::cloud (the tests make a model on 127.0.0.1 one)
+    /// Claude by Anthropic's API (None: a chat completion), with what it thought before its calls
+    claude: Option<Arc<claude::Replay>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -104,7 +108,20 @@ async fn until(cancelled: &impl Fn() -> bool) {
 impl Llm {
     pub fn new(url: &str, model: &str, key: &str, extra: Map<String, Value>) -> Llm {
         let http = crate::http().connect_timeout(Duration::from_secs(10)).build().expect("an HTTP client");
-        Llm { http, url: url.into(), model: model.into(), key: key.into(), extra, cloud: crate::providers::cloud(url) }
+        Llm {
+            http,
+            url: url.into(),
+            model: model.into(),
+            key: key.into(),
+            extra,
+            cloud: crate::providers::cloud(url),
+            claude: None,
+        }
+    }
+
+    /// Claude: `base` is the API's root («https://api.anthropic.com/v1»).
+    pub fn claude(base: &str, model: &str, key: &str, extra: Map<String, Value>) -> Llm {
+        Llm { claude: Some(Default::default()), ..Llm::new(&format!("{base}/messages"), model, key, extra) }
     }
 
     /// A provider in the internet (https), not one at home.
@@ -119,7 +136,13 @@ impl Llm {
         self
     }
 
-    fn request(&self, body: &Value, stream: bool) -> reqwest::RequestBuilder {
+    /// `replay`: Claude gets what it thought before this request's earlier calls.
+    fn request(&self, body: &Value, stream: bool, replay: bool) -> reqwest::RequestBuilder {
+        if let Some(r) = &self.claude {
+            let b = claude::request(body, &self.model, &self.extra, replay.then_some(r.as_ref()), stream);
+            let req = self.http.post(&self.url).header("anthropic-version", claude::VERSION).json(&b);
+            return if self.key.is_empty() { req } else { req.header("x-api-key", &self.key) };
+        }
         let mut b = body.as_object().cloned().unwrap_or_default();
         b.insert("model".into(), json!(self.model));
         if stream {
@@ -133,6 +156,26 @@ impl Llm {
             req = req.bearer_auth(&self.key);
         }
         req
+    }
+
+    /// The request sent, its answer's status checked. Claude refusing what it thought before (a signature that does not
+    /// fit this conversation): once more without it — a round is better answered without it than not at all.
+    async fn send(&self, body: &Value, stream: bool, timeout: Option<Duration>) -> Result<reqwest::Response, LlmError> {
+        let go = |replay: bool| {
+            let req = self.request(body, stream, replay);
+            async move {
+                let req = if let Some(t) = timeout { req.timeout(t) } else { req };
+                Self::check(req.send().await.map_err(|e| LlmError::Other(e.to_string()))?).await
+            }
+        };
+        match go(true).await {
+            Err(LlmError::Http(400, t))
+                if self.claude.is_some() && (t.contains("signature") || t.contains("thinking")) =>
+            {
+                go(false).await
+            }
+            r => r,
+        }
     }
 
     async fn check(r: reqwest::Response) -> Result<reqwest::Response, LlmError> {
@@ -154,14 +197,14 @@ impl Llm {
         mut on_text: impl FnMut(&str),
         cancelled: impl Fn() -> bool,
     ) -> Result<(String, Vec<Call>), LlmError> {
-        let send = tokio::time::timeout(wait, self.request(body, true).send());
+        let send = tokio::time::timeout(wait, self.send(body, true, None));
         let r = tokio::select! {
-            r = send => r.map_err(|_| LlmError::Other("timed out".into()))?.map_err(|e| LlmError::Other(e.to_string()))?,
+            r = send => r.map_err(|_| LlmError::Other("timed out".into()))??,
             _ = until(&cancelled) => return Ok((String::new(), vec![])),
         };
-        let r = Self::check(r).await?;
         let mut content = String::new();
         let mut calls: Vec<Call> = vec![];
+        let mut reading = self.claude.as_ref().map(|_| claude::Reading::default());
         let mut buf: Vec<u8> = vec![];
         let mut s = r.bytes_stream();
         'read: loop {
@@ -184,7 +227,25 @@ impl Llm {
                 }
                 let v: Value =
                     serde_json::from_str(data).map_err(|e| LlmError::Other(format!("bad JSON in the stream: {e}")))?;
-                event(&v, &mut content, &mut calls, &mut on_text)?;
+                match &mut reading {
+                    Some(r) => r
+                        .event(&v, &mut content, &mut on_text)
+                        .map_err(|e| LlmError::Other(format!("an error in the stream: {e}")))?,
+                    None => event(&v, &mut content, &mut calls, &mut on_text)?,
+                }
+            }
+        }
+        if let (Some(r), Some(replay)) = (reading, &self.claude) {
+            let declined = r.stop.as_deref() == Some("refusal");
+            let (made, blocks) = r.finish();
+            calls = made;
+            if !calls.is_empty() {
+                replay.keep(blocks);
+            }
+            // declined before a word: said so, not «lost the thought» (which a retry would say too)
+            if declined && content.trim().is_empty() && calls.is_empty() {
+                content = claude::DECLINED.to_string();
+                on_text(&content);
             }
         }
         Ok((content, calls))
@@ -192,9 +253,9 @@ impl Llm {
 
     /// One whole completion → the server's JSON.
     pub async fn complete(&self, body: &Value, timeout: Duration) -> Result<Value, LlmError> {
-        let r = self.request(body, false).timeout(timeout).send().await.map_err(|e| LlmError::Other(e.to_string()))?;
-        let r = Self::check(r).await?;
-        r.json().await.map_err(|e| LlmError::Other(e.to_string()))
+        let r = self.send(body, false, Some(timeout)).await?;
+        let v: Value = r.json().await.map_err(|e| LlmError::Other(e.to_string()))?;
+        Ok(if self.claude.is_some() { claude::whole(&v) } else { v })
     }
 }
 

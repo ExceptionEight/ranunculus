@@ -10,6 +10,7 @@
 //!   ranunculus-server version
 mod alarms;
 mod brain;
+mod claude;
 mod config;
 mod events;
 mod fillers;
