@@ -24,7 +24,7 @@ toml = { version = "1", default-features = false, features = ["std", "serde", "p
 regex = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 chrono-tz = "0.10" # the home's time zone by its name («Europe/Moscow»)
-rusqlite = { version = "0.41", features = ["bundled", "functions"] } # SQLite with FTS5; functions: days and hours in the home's time zone
+rusqlite = { version = "0.43", features = ["bundled", "functions"] } # SQLite with FTS5; functions: days and hours in the home's time zone
 rand = { version = "0.10", default-features = false, features = ["thread_rng"] }
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "query", "tokio"] } # the web UI (web/)
 argon2 = "0.6" # the web UI's passwords (web/auth.rs): Argon2id, OWASP's parameters (the crate's defaults)
