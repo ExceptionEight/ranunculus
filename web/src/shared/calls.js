@@ -1,6 +1,8 @@
 // What the assistant did with its tools, in words: a short label (a chip) and a stage direction («Ставит таймер на
-// 3 минуты.»). A call is [name, args, result] as the chats keep it; only the arguments are relied on.
+// 3 минуты.»). A call is [name, args, result] as the chats keep it; only the arguments are relied on. A control of the
+// home is named as the home names it now (the call keeps only its id).
 import { plural, span, trackTime } from './format.js'
+import { getState } from './store.js'
 
 const PLAYER = {
   pause: ['пауза', 'Ставит музыку на паузу'],
@@ -16,6 +18,35 @@ const PLAYER = {
 }
 
 const DAY = { today: 'сегодня', tomorrow: 'завтра', after_tomorrow: 'послезавтра' }
+
+/** A control of the home by its id, as the home is now: [device's name, control]; none — the home has changed since. */
+function controlOf(id) {
+  for (const d of getState().house?.devices || []) {
+    const c = d.controls.find((x) => x.id === id)
+    if (c) return [d.name, c]
+  }
+  return null
+}
+
+/** How a switch is told to turn, by what it switches. */
+const TURN = { open: ['открыть', 'закрыть'], locked: ['запереть', 'отпереть'], playing: ['играть', 'пауза'] }
+
+/** What a control was set to, in words: «включить», «70 °C», an option by its label. */
+function setTo(c, v) {
+  if (c.kind === 'action') return ''
+  // (a model says a value as a word: «true», «70»)
+  if (c.kind === 'number' && String(v).trim() !== '' && Number.isFinite(Number(v))) v = Number(v)
+  if (c.kind === 'bool') {
+    const on = v === true || v === 'true' || v === 1
+    return (TURN[c.id.split('#')[1]] || ['включить', 'выключить'])[on ? 0 : 1]
+  }
+  const said = String(v).toLowerCase()
+  const option = c.options?.find((o) => o.value === v || o.label.toLowerCase() === said)
+  if (option) return option.label
+  if (typeof v !== 'number') return String(v)
+  const n = v.toLocaleString('ru-RU')
+  return c.unit ? (c.unit === '%' ? `${n}%` : `${n} ${c.unit}`) : n
+}
 
 function ok(res) {
   return !(res && typeof res === 'object' && res.ok === false)
@@ -102,6 +133,23 @@ export function describe([name, args = {}, res]) {
             : `Смотрит, какой день будет через ${days}`
       }
       break
+    case 'home_device':
+      label = a.name || 'умный дом'
+      direction = `Смотрит, что с устройством${a.name ? ` «${a.name}»` : ''}`
+      break
+    case 'home_set': {
+      const found = controlOf(a.control)
+      if (!found) {
+        label = 'умный дом'
+        direction = 'Меняет настройку устройства'
+        break
+      }
+      const [device, c] = found
+      const to = setTo(c, a.value)
+      label = `${device}: ${c.name}${to ? ` — ${to}` : ''}`
+      direction = `Меняет у устройства «${device}» ручку «${c.name}»${to ? `: ${to}` : ''}`
+      break
+    }
     default:
       label = name
       direction = name

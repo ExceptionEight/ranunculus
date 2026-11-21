@@ -226,5 +226,47 @@
         }
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "home_device",
+      "description": "Умный дом: устройство по имени (или все устройства комнаты по её названию) — в сети ли оно и его ручки (control) с текущими значениями, диапазонами и вариантами. Вызывай перед тем, как отвечать о состоянии устройства или менять его.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Имя устройства или комнаты, как в списке устройств дома"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "home_set",
+      "description": "Умный дом: изменить одну ручку устройства. control — идентификатор ручки; value — «true» или «false» для kind=bool, число для kind=number, один из options для kind=choice, «true» для kind=action. Если вернулась ошибка, действие не выполнено.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "control": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string",
+            "description": "true/false, число или вариант из options"
+          }
+        },
+        "required": [
+          "control",
+          "value"
+        ]
+      }
+    }
   }
 ]

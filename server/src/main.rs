@@ -13,6 +13,7 @@ mod brain;
 mod config;
 mod events;
 mod fillers;
+mod house;
 mod identity;
 mod listen;
 mod listener;
@@ -267,6 +268,25 @@ async fn start(cfg: config::Config) -> Result<(), String> {
     let fillers = fillers::Fillers::new(&cfg.at("fillers"));
     fillers.prepare(&providers.services());
     brain.set_profile(settings.profile());
+    // the home's devices (Home Assistant): the model is told of them as they are now
+    let house = house::House::load(store.clone());
+    let (b, p, warm) = (brain.clone(), providers.clone(), cfg.memory.prewarm);
+    house.on_list(move |list| {
+        // the prompt changed: back into the cache of a model at home while nobody waits
+        if b.set_house(list) && warm {
+            if let (Some(llm), Ok(rt)) = (p.llm(), tokio::runtime::Handle::try_current()) {
+                let b = b.clone();
+                rt.spawn(async move {
+                    if let Some(s) = b.prewarm(&llm).await {
+                        session::log(
+                            "server",
+                            format!("   (the prompt with the home's devices warmed up in {s:.1} s)"),
+                        );
+                    }
+                });
+            }
+        }
+    });
     let shared = Arc::new(session::Shared {
         brain: brain.clone(),
         fillers,
@@ -286,9 +306,11 @@ async fn start(cfg: config::Config) -> Result<(), String> {
         wakes_dir,
         rings: Default::default(),
         dialogs: Default::default(),
+        house: house.clone(),
     });
     timers::resume(&shared);
     tokio::spawn(alarms::run(shared.clone()));
+    tokio::spawn(house.run());
     match shared.providers.llm() {
         Some(llm) if cfg.memory.prewarm => {
             let b = brain.clone();

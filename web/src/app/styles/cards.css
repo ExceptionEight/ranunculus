@@ -141,6 +141,11 @@
   color: var(--ink-2);
 }
 
+/* a refusal in a row's text is still a refusal */
+.r-text .err {
+  color: var(--bad);
+}
+
 .r-ctl {
   flex: none;
   display: flex;

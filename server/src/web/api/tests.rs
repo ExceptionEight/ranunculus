@@ -40,6 +40,7 @@ fn test_app(name: &str) -> (App, std::path::PathBuf) {
         rings: Default::default(),
         dialogs: Default::default(),
         listens: crate::listens::Writer::start(store.clone()),
+        house: crate::house::House::load(store.clone()),
     });
     (
         App {

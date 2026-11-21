@@ -21,6 +21,11 @@ fn bus() -> &'static broadcast::Sender<Ev> {
     BUS.get_or_init(|| broadcast::channel(BACKLOG).0)
 }
 
+/// Someone listens: what is costly to put together (the whole home) need not be when no one does.
+pub fn heard() -> bool {
+    bus().receiver_count() > 0
+}
+
 pub fn emit(kind: &'static str, data: Value) {
     let b = bus();
     if b.receiver_count() > 0 {

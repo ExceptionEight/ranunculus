@@ -1,4 +1,4 @@
-/* Home: the stations, what is set to ring */
+/* Home: the stations, what plays, the home's devices (house.css), what is set to ring */
 
 /* a part of the page: its heading over its cards */
 .stations-col {
@@ -6,11 +6,6 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-}
-
-/* what is set to ring, beside the stations: under them when there is no room for its lines */
-.stations-col.grow-1 {
-  flex-basis: 300px;
 }
 
 .section-head {
@@ -166,6 +161,10 @@
 .agenda-item .what span {
   font-size: 13px;
   color: var(--ink-2);
+}
+
+.agenda-item .what .err {
+  color: var(--bad);
 }
 
 .agenda-item .what a {

@@ -114,10 +114,18 @@ pub fn llm_of(c: &ConnectionRow, r: &RoleRow) -> Llm {
 
 /// A connection as the API shows it: the key only as «set, ends with …».
 pub fn public(c: &ConnectionRow) -> Value {
-    let tail: String = c.key.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
-    json!({"id": c.id, "name": c.name, "url": c.url, "key_set": !c.key.is_empty(),
-           "key_tail": if c.key.chars().count() > 8 { tail } else { String::new() }, "cloud": cloud(&c.url),
-           "openrouter": is_openrouter(&c.url)})
+    json!({"id": c.id, "name": c.name, "url": c.url, "key_set": !c.key.is_empty(), "key_tail": tail(&c.key),
+           "cloud": cloud(&c.url), "openrouter": is_openrouter(&c.url)})
+}
+
+/// A key's (a token's) last four characters, to tell which one is kept; of a short one, nothing.
+pub fn tail(key: &str) -> String {
+    let n = key.chars().count();
+    if n > 8 {
+        key.chars().skip(n - 4).collect()
+    } else {
+        String::new()
+    }
 }
 
 impl Providers {

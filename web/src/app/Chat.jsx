@@ -6,12 +6,13 @@ import { Fragment, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import {
   ArrowDown,
-  CalendarDays,
   Calculator,
+  CalendarDays,
   ChevronLeft,
   CloudSun,
   Globe,
   History,
+  Lightbulb,
   ListMusic,
   MessagesSquare,
   Music2,
@@ -39,6 +40,8 @@ const TOOL_ICON = {
   recall: History,
   calculate: Calculator,
   date_calc: CalendarDays,
+  home_device: Lightbulb,
+  home_set: Lightbulb,
 }
 
 /** «Сегодня», «Вчера», «Суббота, 7 ноября», with the year when it is not this one */

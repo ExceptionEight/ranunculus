@@ -1798,6 +1798,7 @@ dependencies = [
  "ring",
  "rpassword",
  "rusqlite",
+ "rustls-platform-verifier",
  "serde",
  "serde_json",
  "time",

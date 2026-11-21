@@ -1,5 +1,6 @@
-// Главная: what needs a hand now (a ring; no models chosen yet), what plays, the stations with their volume, and what
-// is set to ring (the timers going, the alarms on). Editing an alarm is on its station's page.
+// Главная, top to bottom: what needs a hand now (a ring; no models chosen yet), the stations with their volume, what
+// plays, the home's devices by room (House.jsx), and what is set to ring (the timers going, the alarms on). Editing an
+// alarm is on its station's page.
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { AlarmClock, ChevronRight, KeyRound, Music2, Speaker, X } from 'lucide-react'
@@ -10,6 +11,7 @@ import { clock, lastSeen, ringDay, status, trackTime } from '../shared/format.js
 import { missing, nothingChosen } from '../shared/providers.js'
 import { devicePath, Empty, PageHead, PlayerCard, RingingCard, Switch, VolumeSlider } from './ui.jsx'
 import { Glyph } from './Flower.jsx'
+import { HouseRooms } from './House.jsx'
 import { tz } from '../shared/zone.js'
 
 function today() {
@@ -88,12 +90,12 @@ function AlarmItem({ a, devices }) {
   )
 }
 
-function Agenda({ devices, list, className }) {
+function Agenda({ devices, list }) {
   const timers = useStore((s) => s.timers)
   const alarms = useStore((s) => s.alarms)
   const on = alarms.filter((a) => a.enabled)
   return (
-    <section className={`stations-col ${className}`} aria-labelledby="agenda-h">
+    <section className="stations-col" aria-labelledby="agenda-h">
       <div className="section-head">
         <h2 id="agenda-h" className="section-title">
           Будильники и таймеры
@@ -128,31 +130,6 @@ export default function Home() {
   const list = useMemo(() => deviceList(devices), [devices])
   const ringing = list.filter((d) => d.online && d.ring)
   const playing = list.filter((d) => d.online && d.music && !d.ring)
-  const stations = (
-    <section className="stations-col grow-2" aria-labelledby="stations-h">
-      <div className="section-head">
-        <h2 id="stations-h" className="section-title">
-          Колонки
-        </h2>
-      </div>
-      {list.length > 0 ? (
-        <div className="stations">
-          {list.map((d) => (
-            <StationCard key={d.id} d={d} />
-          ))}
-        </div>
-      ) : (
-        link === 'live' && (
-          <div className="card">
-            <Empty icon={Speaker} title="Колонок пока нет">
-              Чтобы подключить колонку, запустите на компьютере с сервером <code>station/install.sh АДРЕС_КОЛОНКИ</code>
-              . Она появится здесь сама.
-            </Empty>
-          </div>
-        )
-      )}
-    </section>
-  )
   return (
     <main className="page">
       <PageHead title="Главная" sub={today()} />
@@ -172,24 +149,39 @@ export default function Home() {
           ))}
         </div>
       )}
-      {playing.length > 0 ? (
-        <>
-          <div className="row">
-            <div className="col grow-2">
-              {playing.map((d) => (
-                <PlayerCard key={d.id} d={d} named />
-              ))}
-            </div>
-            <Agenda devices={devices} list={list} className="grow-1" />
+      <section className="stations-col" aria-labelledby="stations-h">
+        <div className="section-head">
+          <h2 id="stations-h" className="section-title">
+            Колонки
+          </h2>
+        </div>
+        {list.length > 0 ? (
+          <div className="stations">
+            {list.map((d) => (
+              <StationCard key={d.id} d={d} />
+            ))}
           </div>
-          <div className="row">{stations}</div>
-        </>
-      ) : (
-        <div className="row">
-          {stations}
-          <Agenda devices={devices} list={list} className="grow-1" />
+        ) : (
+          link === 'live' && (
+            <div className="card">
+              <Empty icon={Speaker} title="Колонок пока нет">
+                Чтобы подключить колонку, запустите на компьютере с сервером{' '}
+                <code>station/install.sh АДРЕС_КОЛОНКИ</code>. Она появится здесь сама.
+              </Empty>
+            </div>
+          )
+        )}
+      </section>
+
+      {playing.length > 0 && (
+        <div className="col">
+          {playing.map((d) => (
+            <PlayerCard key={d.id} d={d} named />
+          ))}
         </div>
       )}
+      <HouseRooms />
+      <Agenda devices={devices} list={list} />
     </main>
   )
 }

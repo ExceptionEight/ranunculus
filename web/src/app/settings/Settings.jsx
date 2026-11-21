@@ -1,12 +1,13 @@
-// Settings in groups: the assistant (how it talks, the home, its models, the sounds), access (this account, the
-// users), the app (its look, about). On a wide screen the groups stay on the left and a section on the right; on a
-// phone the list, then a section with a way back.
+// Settings in groups: the assistant (how it talks, the home, its models, the sounds, the home's devices), access
+// (this account, the users), the app (its look, about). On a wide screen the groups stay on the left and a section
+// on the right; on a phone the list, then a section with a way back.
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router'
 import {
   Bell,
   ChevronRight,
   House,
   Info,
+  Lightbulb,
   MessageCircle,
   Palette,
   Sparkles,
@@ -20,6 +21,7 @@ import Connections from './Connections.jsx'
 import HomePlace from './HomePlace.jsx'
 import Look from './Look.jsx'
 import Pane from './Pane.jsx'
+import Smart from './Smart.jsx'
 import Sounds from './Sounds.jsx'
 import Talk from './Talk.jsx'
 import Users from './Users.jsx'
@@ -32,6 +34,7 @@ const GROUPS = [
       ['home', 'Дом', House],
       ['models', 'Модели', Sparkles],
       ['sounds', 'Звуки', Bell],
+      ['house', 'Умный дом', Lightbulb],
     ],
   ],
   [
@@ -78,6 +81,7 @@ export default function Settings() {
             <Route path="home" element={<HomePlace />} />
             <Route path="models" element={<Connections Pane={Pane} />} />
             <Route path="sounds" element={<Sounds />} />
+            <Route path="house" element={<Smart />} />
             <Route path="account" element={<Account />} />
             <Route path="users" element={<Users />} />
             <Route path="look" element={<Look />} />

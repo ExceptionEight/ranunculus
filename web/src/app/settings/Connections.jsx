@@ -156,7 +156,7 @@ function ConnectionEditor({ connection, haveOpenRouter, onClose }) {
           autoComplete="off"
           placeholder={
             connection?.key_set && !clearKey
-              ? `Задан${connection.key_tail ? `: …${connection.key_tail}` : ''}. Оставьте пустым, чтобы не менять`
+              ? `Задан${connection.key_tail ? `: …${connection.key_tail}` : ''}`
               : 'Для локальных моделей оставьте пустым'
           }
           value={f.key}

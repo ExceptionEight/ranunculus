@@ -17,6 +17,7 @@ serde_json = { workspace = true, features = ["preserve_order"] } # tool JSON kee
 tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "macros", "io-util", "sync", "process", "fs", "signal"] }
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rustls-platform-verifier = "0.7" # already under reqwest: Home Assistant over https is checked as the system checks (house/ha.rs)
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "json", "query", "stream", "multipart"] } # rustls on ring: main.rs installs it
 toml = { version = "1", default-features = false, features = ["std", "serde", "parse"] }

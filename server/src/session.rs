@@ -81,6 +81,8 @@ pub struct Shared {
     pub rings: Mutex<HashMap<String, Arc<Ring>>>,
     /// each device's dialog: listening, or a request on (a ring waits for it to end)
     pub dialogs: Mutex<HashMap<String, usize>>,
+    /// the home's devices, from Home Assistant (house/)
+    pub house: Arc<crate::house::House>,
 }
 
 impl Shared {
@@ -774,7 +776,9 @@ async fn request(
     let speaker =
         tokio::spawn(speech::speak(q.clone(), station.clone(), services.clone(), g.clone(), t_wake, searching.clone()));
     let mut model = String::new();
-    let action = player.as_ref().filter(|p| p.has_queue()).and_then(|_| music::spoken_command(&text));
+    // («свет выключи», «чайник включай» are not for the player, whatever plays)
+    let home = shared.house.about(&text);
+    let action = player.as_ref().filter(|p| p.has_queue() && !home).and_then(|_| music::spoken_command(&text));
     let say = |s: &str| events::emit("said", json!({"device": dev, "turn": turn, "text": s}));
     let (answer, calls): (String, Vec<Done>) = if text.is_empty() {
         let a = if deaf { DEAF } else { "Не расслышала." }.to_string();
@@ -812,6 +816,7 @@ async fn request(
                 search: shared.search.clone(),
                 music: player.clone(),
                 home: shared.settings.place(),
+                house: Some(shared.house.clone()),
             },
             shared.brain.memory.clone(),
         );

@@ -25,7 +25,7 @@ import { level, nearestStop, RING_STOPS, soundTitle, span, trackTime, until } fr
 
 export const devicePath = (id) => `/devices/${encodeURIComponent(id)}`
 
-export function Switch({ on, onChange, label, disabled }) {
+export function Switch({ on, onChange, label, disabled, busy }) {
   return (
     <button
       type="button"
@@ -33,6 +33,7 @@ export function Switch({ on, onChange, label, disabled }) {
       className="switch"
       aria-checked={!!on}
       aria-label={label}
+      aria-busy={busy || undefined}
       disabled={disabled}
       onClick={(e) => {
         e.stopPropagation()

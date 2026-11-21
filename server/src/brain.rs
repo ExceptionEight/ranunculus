@@ -48,6 +48,14 @@ const FACT_GUARD: bool = true;
 /// The system prompt: `{where}` (WHERE_*), `{address}` and `{home}` (what the settings say about the home), `{year}`,
 /// `{facts}` (the notes). A prompt.md in the data folder replaces it.
 const PROMPT: &str = include_str!("prompt.md");
+/// What the prompt says of the home while there is none, and what it says instead when there is one.
+const NO_HOUSE: &str = "Умный дом пока не умеешь.";
+const HAS_HOUSE: &str = "Умеешь и управлять устройствами умного дома.";
+/// No home (none was connected, or it was disconnected): said outright — a history full of kettles switched on is
+/// otherwise believed.
+const OFF_HOUSE: &str = "Умный дом сейчас не подключён: устройствами не управляешь и их состояния не знаешь, что бы о них ни было сказано в разговоре раньше.";
+/// What the prompt says of the home's devices, when there is a home; the list of them follows.
+const HOUSE: &str = "\n\nУмный дом:\n- Устройствами дома управляй инструментами: home_set меняет одну ручку устройства по её control.\n- Если в скобках у последней реплики есть «умный дом сейчас: …» — это устройства, о которых может идти речь, и их ручки на эту секунду. Если просят об одном из них, бери control оттуда и сразу вызывай home_set; на вопрос о состоянии отвечай по этим значениям.\n- Если нужного устройства в скобках нет — сначала вызови home_device с его именем или названием комнаты.\n- Состояние устройств из прошлых реплик не используй: его могли поменять руками. «Уже включено» говори только по значениям из скобок или из home_device.\n- Чайник и нагреватель воды: если у устройства есть ручка режима, выбирай режим по просьбе — кипячение для «вскипяти», разогрев до температуры для «нагрей до 70» (с удержанием, если просят держать тёплым), перед этим поставь целевую температуру. Режим сам включает нагрев, отдельно включать после него не надо: простое включение обычно кипятит до ста. Нет ручки режима — целевая температура и включение нагрева: два вызова home_set, даже если вода сейчас горячее нужного.\n- Если инструмент вернул ошибку или устройство не в сети, скажи, что не получилось и почему. Не говори «готово», пока home_set не ответил успехом.\n- Названия ручек и вариантов бывают английскими: в ответе называй их по-русски, коротко.\n- Что показывают датчики дома (температура, влажность там, где датчик стоит) — узнавай у дома через home_device, а не из прогноза погоды и не из поиска.\n- Устройства по комнатам (в скобках — что это):\n";
 const WHERE_HOME: &str = "Ты живёшь дома у пользователя, а не в облаке и не на чужих серверах.";
 const WHERE_CLOUD: &str = "Ты живёшь в колонке у пользователя дома, а думаешь через облачный сервис в интернете.";
 
@@ -138,9 +146,13 @@ pub fn brief(name: &str, res: &Value) -> Value {
     if ["web_search", "read_page", "recall"].contains(&name) {
         return json!({"ok": true, "note": "результат был, в истории опущен"});
     }
+    // a device's state then is not its state now: kept, it is read as one
+    if name == "home_device" && res.get("devices").is_some() && res["ok"] != json!(false) {
+        return json!({"ok": true, "note": "состояние было на тот момент, в истории опущено"});
+    }
     let Value::Object(o) = res else { return json!({"ok": true}) };
     let mut out = Map::new();
-    for k in ["ok", "playing", "state", "track", "error", "rings_at", "level", "result"] {
+    for k in ["ok", "playing", "state", "track", "error", "rings_at", "level", "result", "value"] {
         if let Some(v) = o.get(k) {
             out.insert(k.into(), v.clone());
         }
@@ -150,6 +162,13 @@ pub fn brief(name: &str, res: &Value) -> Value {
     } else {
         Value::Object(out)
     }
+}
+
+/// The numbers a text names, as written («89», «21.5»; a comma as a point).
+fn numbers(text: &str) -> Vec<String> {
+    static N: OnceLock<Regex> = OnceLock::new();
+    let n = N.get_or_init(|| Regex::new(r"\d+(?:[.,]\d+)?").unwrap());
+    n.find_iter(text).map(|m| m.as_str().replace(',', ".").trim_end_matches(".0").to_string()).collect()
 }
 
 /// Says something: not null, false, zero or empty.
@@ -210,6 +229,8 @@ pub struct Brain {
     /// a file that replaces the built-in prompt, if it is there
     prompt: String,
     profile: std::sync::RwLock<Profile>,
+    /// the home's devices as the house lists them ("": no home — nothing is said of one, its tools are not offered)
+    house: std::sync::RwLock<String>,
     turns: Mutex<Vec<Turn>>,
     last: Mutex<f64>,
     /// device → its request in progress: an interrupted one winds down before the device's next one starts
@@ -233,6 +254,7 @@ impl Brain {
             memory,
             prompt: prompt.into(),
             profile: Default::default(),
+            house: Default::default(),
             turns: Mutex::new(turns),
             last: Mutex::new(last),
             devices: Default::default(),
@@ -274,6 +296,16 @@ impl Brain {
         true
     }
 
+    /// The home's devices as they are now (house/). → whether the list changed.
+    pub fn set_house(&self, list: String) -> bool {
+        let mut h = self.house.write().unwrap();
+        if *h == list {
+            return false;
+        }
+        *h = list;
+        true
+    }
+
     /// The system prompt, read every time (a prompt.md put into the data folder applies without a restart), with the
     /// year, the notes and what the settings say. `cloud`: the model is in the internet.
     pub fn system(&self, cloud: bool) -> String {
@@ -296,6 +328,16 @@ impl Brain {
             .replace("{home}", &weather)
             .replace("{year}", &year().to_string())
             .replace("{facts}", if notes.is_empty() { "- пока ничего" } else { &notes });
+        // the home's tools are offered with a home and without one (they say it is not connected): hidden, a model
+        // that remembered switching a kettle answered «включила» and played music for want of the tool
+        let house = self.house.read().unwrap();
+        if house.is_empty() {
+            p = p.replace(NO_HOUSE, OFF_HOUSE);
+        } else {
+            p = p.replace(NO_HOUSE, HAS_HOUSE);
+            p.push_str(HOUSE);
+            p.push_str(&house);
+        }
         if !home.preferences.is_empty() {
             p.push_str("\n\nКак хозяин просит с ним общаться (написал сам, в настройках; следуй этому):\n");
             p.push_str(&home.preferences);
@@ -333,7 +375,9 @@ impl Brain {
         })
     }
 
-    pub async fn messages(&self, text: &str, now: f64, tools: &Tools, cloud: bool) -> Vec<Value> {
+    /// → the messages, and what the last one's stamp says of the home's devices (None: nothing — the request speaks
+    /// of none).
+    pub async fn messages(&self, text: &str, now: f64, tools: &Tools, cloud: bool) -> (Vec<Value>, Option<String>) {
         let hist = {
             let turns = self.turns.lock().unwrap();
             let mut hist: Vec<Value> = vec![];
@@ -379,7 +423,7 @@ impl Brain {
         let mut msgs = vec![json!({"role": "system", "content": self.system(cloud)})];
         msgs.extend(hist);
         msgs.push(json!({"role": "user", "content": format!("[{head}] {text}")}));
-        msgs
+        (msgs, live.into_iter().find(|x| x.starts_with(crate::house::STAMP)))
     }
 
     fn keep(&self, t: f64, text: &str, answer: &str, msgs: Option<Vec<Value>>, calls: &[Done]) {
@@ -415,7 +459,7 @@ impl Brain {
             return None;
         }
         let tools = Tools::new(crate::tools::Io::default(), None);
-        let msgs = self.messages("…", now_s(), &tools, false).await;
+        let (msgs, _) = self.messages("…", now_s(), &tools, false).await;
         let body = json!({"messages": msgs, "tools": schemas(), "temperature": 0.3, "max_tokens": 1, "chat_template_kwargs": {"enable_thinking": false}});
         let t = now_s();
         self.complete(llm, &body, Duration::from_secs(180)).await.ok().map(|_| now_s() - t)
@@ -444,10 +488,11 @@ impl Brain {
         }
         let mut model = String::new();
         let now = now.unwrap_or_else(now_s);
-        let mut msgs = self.messages(text, now, tools, llm.cloud()).await;
+        let (mut msgs, home_now) = self.messages(text, now, tools, llm.cloud()).await;
         let mut new = vec![msgs.last().unwrap().clone()];
         let (mut calls_done, mut said): (Vec<Done>, Vec<String>) = (vec![], vec![]);
         let (mut retried, mut nudged, mut checked, mut force) = (0, false, false, false);
+        let known_home = !self.house.read().unwrap().is_empty();
         let fact_q = FACT_GUARD && fact_q().is_match(text) && !not_fact().is_match(text);
         // a volume change asked for: whatever is said first, a set_volume call must come with it — the CLAIM words do
         // not cover every way to say «done» («Сделала три»)
@@ -576,10 +621,17 @@ impl Brain {
                     ),
                 );
                 msgs.push(json!({"role": "assistant", "content": content.trim()}));
-                msgs.push(json!({"role": "user", "content": NUDGE}));
+                let told = if known_home {
+                    NUDGE.replace("таймер)", "таймер, устройство дома)")
+                } else {
+                    NUDGE.into()
+                };
+                msgs.push(json!({"role": "user", "content": told}));
                 continue;
             }
-            if !held.is_empty() && calls.is_empty() && fact_q && !checked && num_unit().is_match(&content) {
+            // (numbers read from the home's devices this second — the request's stamp has them — are not «from memory»)
+            let read = home_now.as_ref().is_some_and(|now| numbers(&content).iter().all(|n| numbers(now).contains(n)));
+            if !held.is_empty() && calls.is_empty() && fact_q && !checked && !read && num_unit().is_match(&content) {
                 (checked, force) = (true, true); // numbers from the model's own head: a search first (the attempt is not said)
                 log(dev, "   (numbers with no check: a search first)");
                 msgs.push(json!({"role": "assistant", "content": content.trim()}));
@@ -667,6 +719,38 @@ mod tests {
         assert_eq!(Value::Object(tool_args(r#"{"level": 7, "x": 1.5"#)), json!({"level": 7, "x": 1.5}));
         assert!(tool_args("").is_empty());
         assert!(tool_args("[1]").is_empty());
+    }
+
+    #[test]
+    fn the_home_in_the_prompt_and_the_tools() {
+        let b = Brain::new(None, NO_PROMPT).unwrap();
+        // no home: the prompt says it is not connected (its tools are offered all the same, and say so too)
+        assert!(PROMPT.contains(NO_HOUSE), "the prompt's own word of the home is the one `system` replaces");
+        let without = b.system(true);
+        assert!(without.contains(OFF_HOUSE) && !without.contains(NO_HOUSE) && !without.contains(HOUSE));
+        assert!(b.set_house("Кухня: Чайник.".into()) && !b.set_house("Кухня: Чайник.".into()), "changed once");
+        let with = b.system(true);
+        assert!(
+            with.ends_with("Кухня: Чайник.")
+                && with.contains(HAS_HOUSE)
+                && !with.contains(NO_HOUSE)
+                && !with.contains(OFF_HOUSE)
+        );
+        // disconnected again: the list goes, the word of it comes back
+        assert!(b.set_house(String::new()) && b.system(true).contains(OFF_HOUSE));
+        // numbers read from the home's devices are not «from memory»; a price is
+        let stamp = r#"умный дом сейчас: {"devices":[{"device":"Чайник","controls":[{"value":89,"max":100.0}]}]}"#;
+        let read = |answer: &str| numbers(answer).iter().all(|n| numbers(stamp).contains(n));
+        assert!(read("Сейчас 89 градусов, цель — 100.") && !read("Около 3000 рублей."));
+        assert_eq!(numbers("21,5 и 70.0"), ["21.5", "70"]);
+        // a device that was not found is not «a state that was»
+        let missed = json!({"ok": false, "error": "такого устройства нет", "devices": ["Чайник"]});
+        assert_eq!(brief("home_device", &missed), json!({"ok": false, "error": "такого устройства нет"}));
+        assert_eq!(
+            brief("home_device", &json!({"devices": []}))["note"],
+            "состояние было на тот момент, в истории опущено"
+        );
+        assert_eq!(brief("home_set", &json!({"ok": true, "value": 70})), json!({"ok": true, "value": 70}));
     }
 
     #[test]

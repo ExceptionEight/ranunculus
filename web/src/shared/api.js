@@ -65,6 +65,12 @@ export const api = {
   },
   settings: () => call('GET', '/api/settings'),
   changeSettings: (patch) => call('PATCH', '/api/settings', patch),
+  /** the home's devices come with the events (store.js: `house`); the address and the token of Home Assistant are
+   * tried first and kept only if it takes them; no token — the one kept */
+  connectHouse: (url, token) => call('PUT', '/api/house/connection', { url, token }),
+  forgetHouse: () => call('DELETE', '/api/house/connection'),
+  /** a control set and waited for: → {value}; a refusal says why (away, out of range, not confirmed) */
+  setControl: (control, value) => call('POST', '/api/house/set', { control, value }),
   sounds: () => call('GET', '/api/sounds'),
   renameSound: (name, to) => call('PATCH', `/api/sounds/${enc(name)}`, { name: to }),
   deleteSound: (name) => call('DELETE', `/api/sounds/${enc(name)}`),

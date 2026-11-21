@@ -26,10 +26,14 @@
 //!   PUT    /api/roles/{role}               {connection, model, voice?, speed?}: who hears (asr), answers (llm), speaks
 //!                                          (tts), makes the memory's vectors (embeddings); DELETE: embeddings only
 //!   POST   /api/roles/{role}/check         a model answers, a voice speaks (WAV), recognition hears a phrase
+//!   GET    /api/house                      the home's devices, from Home Assistant: the connection, rooms, devices, controls
+//!   PUT    /api/house/connection           {"url", "token"}: tried, kept if taken; DELETE: forgotten
+//!   POST   /api/house/set                  {"control", "value"}: a control set and waited for
 //!   GET    /api/wakes?device=&label=&before=&limit=   every wake recorded (wakes.rs), newest first, and the counts
 //!   GET    /api/wakes/{id}/audio · PATCH /api/wakes/{id} {"label": "me"|"not"|null} · DELETE /api/wakes/{id}
 mod alarms;
 mod devices;
+mod house;
 mod providers;
 mod sounds;
 #[cfg(test)]
@@ -101,6 +105,9 @@ pub fn routes() -> Router<App> {
         .route("/api/connections/{id}/models", post(providers::models))
         .route("/api/roles/{role}", put(providers::set_role).delete(providers::clear_role))
         .route("/api/roles/{role}/check", post(providers::check_role))
+        .route("/api/house", get(house::house))
+        .route("/api/house/connection", put(house::connect).delete(house::forget))
+        .route("/api/house/set", post(house::set))
         .route("/api/wakes", get(wakes::list_wakes))
         .route("/api/wakes/{id}", axum::routing::patch(wakes::mark_wake).delete(wakes::delete_wake))
         .route("/api/wakes/{id}/audio", get(wakes::wake_audio))
@@ -128,7 +135,7 @@ async fn info() -> R {
 fn everything(app: &App) -> Value {
     json!({"version": ranunculus_proto::VERSION, "now": now_s(), "devices": devices::all_devices(&app.shared), "settings": app.shared.settings.all(),
            "timers": app.shared.timers.json(), "alarms": crate::alarms::list(&app.shared),
-           "providers": app.shared.providers.json()})
+           "providers": app.shared.providers.json(), "house": app.shared.house.json()})
 }
 
 /// `hello` first (all there is now: devices, settings, timers…), then every change; a comment every 15 s keeps proxies

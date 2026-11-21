@@ -10,6 +10,7 @@ import { devicePath } from './ui.jsx'
 import { Glyph } from './Flower.jsx'
 import Home from './Home.jsx'
 import Device from './Device.jsx'
+import Thing from './House.jsx'
 import Analytics from './Analytics.jsx'
 import Settings from './settings/Settings.jsx'
 import Login from './Login.jsx'
@@ -41,9 +42,9 @@ function LinkBanner() {
   )
 }
 
-/** Главная is also where a station's page belongs. */
+/** Главная is also where a station's page belongs, and a device's of the home. */
 function placeActive(path, pathname) {
-  if (path === '/') return pathname === '/' || pathname.startsWith('/devices')
+  if (path === '/') return pathname === '/' || pathname.startsWith('/devices') || pathname.startsWith('/house')
   return pathname.startsWith(path)
 }
 
@@ -131,6 +132,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/devices/:id/*" element={<Device />} />
+            <Route path="/house/:id" element={<Thing />} />
             <Route path="/analytics/*" element={<Analytics />} />
             <Route path="/settings/*" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />

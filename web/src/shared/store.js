@@ -18,6 +18,8 @@ let state = {
   alarms: [], // soonest first
   providers: null, // {connections, roles}: who hears, answers, speaks, makes the memory's vectors
   sounds: null, // null: not fetched yet
+  // the home's devices, from Home Assistant: {status, error, url, token_tail, name, version, rooms, devices}
+  house: null,
   live: {}, // device → {turn, heard, text, said: [sentences], t}: the exchange going on now
   chats: {}, // device id, or '*' for all → {items: oldest first, more, loading, error}
 }
@@ -81,6 +83,7 @@ const EMPTY = {
   alarms: [],
   providers: null,
   sounds: null,
+  house: null,
   live: {},
   chats: {},
 }
@@ -168,6 +171,12 @@ export function connect() {
     listenListeners.forEach((f) => f(l))
   })
   es.addEventListener('sounds', (e) => set({ sounds: JSON.parse(e.data) }))
+  es.addEventListener('house', (e) => set({ house: JSON.parse(e.data) }))
+  es.addEventListener('house_device', (e) => {
+    const d = JSON.parse(e.data)
+    const h = state.house
+    if (h) set({ house: { ...h, devices: h.devices.map((x) => (x.id === d.id ? d : x)) } })
+  })
   es.onopen = () => set({ link: 'live' })
   // closed for good: the server refused (signed out: 401) or failed — which of the two, /api/auth says
   es.onerror = () => {
@@ -212,6 +221,7 @@ function hello(h) {
     timers: h.timers,
     alarms: h.alarms || [],
     providers: h.providers || null,
+    house: h.house || null,
     chats: {},
   })
   reload.forEach((k) => loadChat(k))

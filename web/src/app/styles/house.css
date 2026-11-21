@@ -1,0 +1,123 @@
+/* The home's devices: their cards on Главная, a device's page, the connection in the settings */
+
+.things {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--gap);
+}
+
+.thing {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+/* the card's link is a station card's (home.css), taking the room the switch leaves */
+.thing-link {
+  flex: 1;
+  min-width: 0;
+}
+
+/* what the device is: quiet while it is off, the flower's colour while it is on */
+.thing-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-ctl);
+  background: var(--fill);
+  color: var(--ink-2);
+}
+
+.thing.on .thing-icon,
+.thing-icon.on {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.thing-icon.big {
+  width: 44px;
+  height: 44px;
+}
+
+.thing-more {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.thing.off .thing-icon {
+  color: var(--ink-3);
+}
+
+.thing.off .station-name b {
+  color: var(--ink-2);
+}
+
+/* Home Assistant is away: what is shown is what was */
+.house-note {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+/* why a switch on a card did not take: in full, not cut to a line */
+.thing .station-name .err {
+  color: var(--bad);
+  white-space: normal;
+}
+
+/* a control's value, as it is read */
+.thing-value {
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* a device's rows: a name keeps room of its own, and what does not fit beside it goes under it, to the right */
+.thing-rows .r-text {
+  min-width: 96px;
+}
+
+.thing-rows .r.wrap .r-ctl {
+  margin-left: auto;
+}
+
+.thing-rows .slide.long output {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thing-rows select.field.sm {
+  width: 220px;
+}
+
+/* a number typed: the field and its unit stay together */
+.thing-typed {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.thing-rows .r .r-ctl .thing-typed .field {
+  width: 110px;
+}
+
+/* stacked (cards.css: .stack-m), a slider takes the row */
+@media (max-width: 640px) {
+  .thing-rows .r.stack-m .slide.long {
+    width: 100%;
+  }
+}
+
+/* a control whose entity does not answer */
+.r.away .r-text b {
+  color: var(--ink-3);
+}
+
+.house-status {
+  font-size: 14px;
+}
