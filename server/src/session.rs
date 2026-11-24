@@ -14,6 +14,7 @@
 use crate::brain::{Brain, Done};
 use crate::events;
 use crate::fillers::{self, Fillers};
+use crate::later::{self, Later};
 use crate::listen::{Listener, Outcome};
 use crate::music::{self, Ducked, Music, Why};
 use crate::ring::{self, Ring, Stop};
@@ -23,7 +24,7 @@ use crate::speech::{self, Queue, Say};
 use crate::store::Store;
 use crate::text::{now_s, round_to, strip_wake, tz};
 use crate::timers::{self, Timers};
-use crate::tools::{Io, TimerHook, Tools};
+use crate::tools::{Io, LaterHook, TimerHook, Tools};
 use futures_util::{SinkExt, StreamExt};
 use ranunculus_proto::{Down, Frame, Look, Up};
 use ranunculus_vad::Silero;
@@ -68,6 +69,8 @@ pub struct Shared {
     /// requests (and timer phrases) running: the note-taker waits
     pub active: AtomicUsize,
     pub timers: Arc<Timers>,
+    /// what is put off: «включи чайник через пять минут» (later.rs)
+    pub later: Arc<Later>,
     /// the user's own sounds (what is chosen and for how long is in `settings`)
     pub sounds_dir: String,
     pub settings: Arc<Settings>,
@@ -808,10 +811,17 @@ async fn request(
             device: dev.clone(),
             start: Arc::new(move |t| timers::schedule(sh.clone(), t)),
         };
+        let sh = shared.clone();
+        let put_off = LaterHook {
+            later: shared.later.clone(),
+            device: dev.clone(),
+            start: Arc::new(move |id, at| later::schedule(sh.clone(), id, at)),
+        };
         let mut tools = Tools::new(
             Io {
                 station: Some(station.clone()),
                 timers: Some(timers),
+                later: Some(put_off),
                 pages: shared.pages.clone(),
                 search: shared.search.clone(),
                 music: player.clone(),

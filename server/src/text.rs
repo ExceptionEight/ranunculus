@@ -16,6 +16,13 @@ pub fn set_tz(zone: Tz) {
     *ZONE.write().unwrap() = zone;
 }
 
+/// A moment by the tests' clock: «2026-11-23 10:15».
+#[cfg(test)]
+pub fn msk_t(s: &str) -> f64 {
+    tz().from_local_datetime(&NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M").unwrap()).single().unwrap().timestamp()
+        as f64
+}
+
 /// The zone of the machine the server runs on: TZ, /etc/timezone, where /etc/localtime points; else UTC.
 pub fn system_tz() -> Tz {
     if cfg!(test) {

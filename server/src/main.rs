@@ -16,6 +16,7 @@ mod events;
 mod fillers;
 mod house;
 mod identity;
+mod later;
 mod listen;
 mod listener;
 mod listens;
@@ -300,6 +301,7 @@ async fn start(cfg: config::Config) -> Result<(), String> {
         stations: Default::default(),
         active: Default::default(),
         timers: timers::Timers::load(Some(&cfg.at("timers.json"))),
+        later: later::Later::new(store.clone()),
         sounds_dir,
         settings,
         store: store.clone(),
@@ -310,6 +312,7 @@ async fn start(cfg: config::Config) -> Result<(), String> {
         house: house.clone(),
     });
     timers::resume(&shared);
+    later::resume(&shared);
     tokio::spawn(alarms::run(shared.clone()));
     tokio::spawn(house.run());
     match shared.providers.llm() {

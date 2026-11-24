@@ -1,6 +1,7 @@
-//! server.db (600): the settings, the devices seen (and the names the user gave them), the alarms, the connections
-//! and what each role uses of them (providers.rs), the wakes recorded, the music listened to, the web UI's users and sessions (web/auth.rs) and the chats: every exchange
-//! of every device, with what was heard, the answer, the tools and the timings.
+//! server.db (600): the settings, the devices seen (and the names the user gave them), the alarms, what is put off
+//! (later.rs), the connections and what each role uses of them (providers.rs), the wakes recorded, the music listened
+//! to, the web UI's users and sessions (web/auth.rs) and the chats: every exchange of every device, with what was
+//! heard, the answer, the tools and the timings.
 //! The assistant's memory (memory.rs) is another thing: what it remembers; this is the record.
 //! The schema grows by numbered steps (PRAGMA user_version), never edited in place.
 use crate::text::tz;
@@ -59,6 +60,14 @@ INSERT INTO roles (role, connection, model, voice, speed, extra, updated)
                         (SELECT min(q.id) FROM providers q WHERE q.kind = p.kind));
 DROP TABLE providers;
 DELETE FROM settings WHERE key = 'providers';
+", "
+-- what is put off (later.rs): a tool's calls (`steps`, JSON) with the time they are due and how it ended. Never
+-- deleted: the record of it. `hidden`: out of the main page's sight
+CREATE TABLE later (id INTEGER PRIMARY KEY, device TEXT NOT NULL, made REAL NOT NULL, at REAL NOT NULL, target TEXT NOT NULL DEFAULT '',
+                    name TEXT NOT NULL DEFAULT '', steps TEXT NOT NULL, state TEXT NOT NULL, error TEXT NOT NULL DEFAULT '', ended REAL,
+                    hidden INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX later_state ON later (state);
+CREATE INDEX later_at ON later (at);
 "];
 
 pub struct Store {

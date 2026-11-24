@@ -49,6 +49,18 @@ const TOLD: usize = 6;
 const NO_LINK: &str = "умный дом сейчас не отвечает";
 const NOT_SET: &str = "умный дом не подключён";
 pub const NO_CONTROL: &str = "нет такой ручки";
+const BY_HAND: &str = "этим управляют только вручную, в веб-интерфейсе";
+
+/// A change of a control that is put off (later.rs): whose it is, and what it will do, in words.
+#[derive(Debug, PartialEq)]
+pub struct Planned {
+    /// the device's id: what is put off for one device at one time is one thing
+    pub device: String,
+    pub name: String,
+    /// the control («Нагрев: режим») and what it is set to («Кипячение»; "": an action)
+    pub what: String,
+    pub value: String,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 enum Status {
@@ -578,7 +590,7 @@ impl House {
             }
             let c = House::control(&i, id).ok_or(NO_CONTROL)?;
             if voice && !c.voice {
-                return Err("этим управляют только вручную, в веб-интерфейсе".into());
+                return Err(BY_HAND.into());
             }
             let (call, want) = model::call(&c, i.raw.states.get(&c.entity).unwrap_or(&Value::Null), value)?;
             // as asked already: nothing is sent. Not only to spare a call — «on» said to a kettle that was just put
@@ -616,6 +628,34 @@ impl House {
                 return Err("команда отправлена, но устройство её не подтвердило".into());
             }
         }
+    }
+
+    /// `set`, looked at and not done — for what is put off: the control is there, the voice may set it (`voice`), the
+    /// value is one it takes. Whether the device answers now is not asked: it is set later.
+    pub fn planned(&self, id: &str, value: &Value, voice: bool) -> Result<Planned, String> {
+        let i = self.inner.lock().unwrap();
+        match i.status {
+            Status::On => {}
+            Status::Off => return Err(NOT_SET.into()),
+            _ => return Err(NO_LINK.into()),
+        }
+        let (d, c) = i
+            .home
+            .devices
+            .iter()
+            .find_map(|d| d.controls.iter().find(|c| c.id == id).map(|c| (d, c)))
+            .ok_or(NO_CONTROL)?;
+        if voice && !c.voice {
+            return Err(BY_HAND.into());
+        }
+        let there = Control { available: true, ..c.clone() };
+        model::call(&there, i.raw.states.get(&c.entity).unwrap_or(&Value::Null), value)?;
+        Ok(Planned {
+            device: d.id.clone(),
+            name: d.name.clone(),
+            what: c.name.clone(),
+            value: model::value_words(c, value).unwrap_or_default(),
+        })
     }
 
     // ------------------------------------------------------------ for the model

@@ -1,8 +1,8 @@
 // The server, live: who is signed in (/api/auth: no one — the sign-in form, no events), then one EventSource
 // (/api/events) for the whole page. `hello` gives everything there is; then only what
 // changes: a device (online, panel, volume, music, ring, name), what was heard and what is said in answer, sentence
-// by sentence, an exchange written to the chats, the settings, the timers, the sounds. Fell behind — the server says
-// `hello` again (a fresh snapshot).
+// by sentence, an exchange written to the chats, the settings, the timers, what is put off, the sounds. Fell behind —
+// the server says `hello` again (a fresh snapshot).
 // Components read it with useStore(selector); the selector must return a part of the state as it is (no new objects).
 import { useSyncExternalStore } from 'react'
 import { api, whenSignedOut } from './api.js'
@@ -16,6 +16,11 @@ let state = {
   settings: null,
   timers: [],
   alarms: [], // soonest first
+  // what is put off («выключи музыку через полчаса»), as the main page shows it: {id, device, at, what, name, steps:
+  // [{what, value}], state: wait | done | failed | missed, error, ended} — `what`: all of it in a line; for a device
+  // of the home — its `name`, and each step's control and value. What waits, soonest first, then what ended lately,
+  // the latest first
+  later: [],
   providers: null, // {connections, roles}: who hears, answers, speaks, makes the memory's vectors
   sounds: null, // null: not fetched yet
   // the home's devices, from Home Assistant: {status, error, url, token_tail, name, version, rooms, devices}
@@ -81,6 +86,7 @@ const EMPTY = {
   settings: null,
   timers: [],
   alarms: [],
+  later: [],
   providers: null,
   sounds: null,
   house: null,
@@ -161,6 +167,7 @@ export function connect() {
   })
   es.addEventListener('timers', (e) => set({ timers: JSON.parse(e.data) }))
   es.addEventListener('alarms', (e) => set({ alarms: JSON.parse(e.data) }))
+  es.addEventListener('later', (e) => set({ later: JSON.parse(e.data) }))
   es.addEventListener('providers', (e) => set({ providers: JSON.parse(e.data) }))
   es.addEventListener('wake', (e) => {
     const w = JSON.parse(e.data)
@@ -220,6 +227,7 @@ function hello(h) {
     settings: h.settings,
     timers: h.timers,
     alarms: h.alarms || [],
+    later: h.later || [],
     providers: h.providers || null,
     house: h.house || null,
     chats: {},

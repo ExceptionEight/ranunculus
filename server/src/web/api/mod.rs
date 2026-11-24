@@ -18,6 +18,11 @@
 //!   GET    /api/sounds/{name}/audio[?seconds=]   WAV as the station plays it: once (up to 60 s), or looped and faded
 //!   GET    /api/timers · DELETE /api/timers/{id} the pending timers; one cancelled
 //!   GET    /api/alarms · POST /api/alarms · PATCH /api/alarms/{id} · DELETE /api/alarms/{id}   alarms (alarms.rs)
+//!   GET    /api/later · DELETE /api/later/{id}    what is put off (later.rs), as the main page shows it: waiting,
+//!                                          and how what was due lately ended; one cancelled (if it waits) or put out
+//!                                          of the main page's sight (if it is over) — the record keeps both
+//!   GET    /api/later/history?before=&limit=      the record of it, all there ever was, by when each was due, the
+//!                                          latest first: {"items", "more"}
 //!   GET    /api/stats?device=&days=30      the exchanges per day, by the hour, per device (analytics)
 //!   GET    /api/music?device=&days=30      the music listened to: per day, the totals, songs, the most skipped, artists
 //!   GET    /api/providers                  the connections (keys hidden) and what each role uses of them
@@ -92,6 +97,9 @@ pub fn routes() -> Router<App> {
         .route("/api/sounds/{name}/audio", get(sounds::audio))
         .route("/api/timers", get(timers))
         .route("/api/timers/{id}", axum::routing::delete(cancel_timer))
+        .route("/api/later", get(put_off))
+        .route("/api/later/history", get(put_off_history))
+        .route("/api/later/{id}", axum::routing::delete(remove_put_off))
         .route("/api/alarms", get(alarms::list_alarms).post(alarms::add_alarm))
         .route("/api/alarms/{id}", axum::routing::patch(alarms::change_alarm).delete(alarms::delete_alarm))
         .route("/api/stats", get(stats))
@@ -135,6 +143,7 @@ async fn info() -> R {
 fn everything(app: &App) -> Value {
     json!({"version": ranunculus_proto::VERSION, "now": now_s(), "devices": devices::all_devices(&app.shared), "settings": app.shared.settings.all(),
            "timers": app.shared.timers.json(), "alarms": crate::alarms::list(&app.shared),
+           "later": app.shared.later.json(),
            "providers": app.shared.providers.json(), "house": app.shared.house.json()})
 }
 
@@ -259,6 +268,42 @@ async fn cancel_timer(State(app): State<App>, Path(id): Path<u64>) -> R {
     app.shared.timers.remove(id);
     log(&t.device, "   (web: a timer cancelled)");
     ok(json!({"cancelled": id}))
+}
+
+// ---------------------------------------------------------------- what is put off
+
+async fn put_off(State(app): State<App>) -> R {
+    ok(app.shared.later.json())
+}
+
+/// One that waits is cancelled; one that is over is put out of the main page's sight. The record keeps both.
+async fn remove_put_off(State(app): State<App>, Path(id): Path<u64>) -> R {
+    if let Some(e) = app.shared.later.cancel(id, None) {
+        log(&e.device, format!("   (web: later №{id} cancelled)"));
+        return ok(json!({"cancelled": id}));
+    }
+    if app.shared.later.hide(id) {
+        return ok(json!({"hidden": id}));
+    }
+    Err(Fail::new(StatusCode::NOT_FOUND, "нет такой отложенной команды на главной"))
+}
+
+async fn put_off_history(State(app): State<App>, Query(q): Query<HashMap<String, String>>) -> R {
+    let before = q.get("before").map(|b| b.parse::<u64>().map_err(|_| bad("before: номер команды"))).transpose()?;
+    let limit = q
+        .get("limit")
+        .map(|l| {
+            l.parse::<usize>()
+                .ok()
+                .filter(|l| (1..=PAGE_MAX).contains(l))
+                .ok_or_else(|| bad(format!("limit: 1…{PAGE_MAX}")))
+        })
+        .transpose()?
+        .unwrap_or(PAGE);
+    let mut items = app.shared.later.history(before, limit + 1);
+    let more = items.len() > limit;
+    items.truncate(limit);
+    ok(json!({"items": items, "more": more}))
 }
 
 // ---------------------------------------------------------------- analytics

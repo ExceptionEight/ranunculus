@@ -32,6 +32,7 @@ fn test_app(name: &str) -> (App, std::path::PathBuf) {
         players: Default::default(),
         active: Default::default(),
         timers: Timers::load(None),
+        later: crate::later::Later::new(store.clone()),
         sounds_dir: dir.clone(),
         settings,
         store: store.clone(),
@@ -357,4 +358,53 @@ fn once_cut_and_faded() {
     let last = i16::from_le_bytes([cut[cut.len() - 2], cut[cut.len() - 1]]);
     let before = i16::from_le_bytes([cut[cut.len() - 2 - 2 * 14400], cut[cut.len() - 1 - 2 * 14400]]);
     assert!(last.abs() < 5 && before == 1000, "{last} {before}");
+}
+
+#[tokio::test]
+async fn what_is_put_off_is_listed_cancelled_and_kept() {
+    use crate::later::Step;
+    let (app, d) = test_app("later");
+    let station = format!("webapi-later-{}", std::process::id());
+    let step = Step {
+        tool: "player_control".into(),
+        args: json!({"action": "stop"}),
+        what: "выключить музыку".into(),
+        value: String::new(),
+    };
+    let mut rx = events::subscribe();
+    let e = app.shared.later.add(&station, now_s() + 600.0, ("", ""), step.clone()).unwrap();
+    // (the bus is the process's: this one's is known by its station)
+    let mine = |v: &Value| v.as_array().is_some_and(|l| l.iter().any(|x| x["device"] == json!(station)));
+    assert_eq!(told(&mut rx, "later", mine).len(), 1, "the page is told");
+    let listed = |app: &App| everything(app)["later"].clone();
+    assert_eq!(
+        (listed(&app)[0]["what"].as_str(), listed(&app)[0]["state"].as_str(), listed(&app)[0]["device"].as_str()),
+        (Some("выключить музыку"), Some("wait"), Some(station.as_str()))
+    );
+    assert_eq!(status(put_off(State(app.clone())).await), 200);
+    // cancelled from the page: off the main page, and in the record for good
+    assert_eq!(status(remove_put_off(State(app.clone()), Path(e.id)).await), 200);
+    assert!(app.shared.later.waiting(e.id).is_none() && listed(&app) == json!([]));
+    assert_eq!(status(remove_put_off(State(app.clone()), Path(e.id)).await), 404);
+    // one that is over: put out of the main page's sight by the same request, once
+    let over = app.shared.later.add(&station, now_s() - 3600.0, ("", ""), step).unwrap();
+    crate::later::perform(&app.shared.later, &over, &mut crate::tools::Tools::new(Default::default(), None)).await;
+    assert_eq!(listed(&app)[0]["state"], json!("missed"));
+    assert_eq!(status(remove_put_off(State(app.clone()), Path(over.id)).await), 200);
+    assert!(listed(&app) == json!([]));
+    assert_eq!(status(remove_put_off(State(app.clone()), Path(over.id)).await), 404);
+    // the record: both, by when each was due; by pages
+    let record = app.shared.later.history(None, 10);
+    assert_eq!(
+        record.iter().map(|x| x["state"].as_str().unwrap()).collect::<Vec<_>>(),
+        ["cancelled", "missed"],
+        "{record:?}"
+    );
+    let page = |q: &[(&str, &str)]| {
+        put_off_history(State(app.clone()), Query(q.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()))
+    };
+    assert_eq!(status(page(&[("limit", "1")]).await), 200);
+    assert_eq!(status(page(&[("before", "x")]).await), 400);
+    assert_eq!(status(page(&[("limit", "0")]).await), 400);
+    let _ = std::fs::remove_dir_all(&d);
 }

@@ -130,6 +130,10 @@ mod tests {
             ("Перемотай на 30 секунд назад", None),
             ("Перемотай на минуту вперёд", None),
             ("Вперёд", None),
+            // put off: the model's (the tool `later`), not the player's at once
+            ("Выключи музыку через двадцать минут", None),
+            ("Выключись через полчаса", None),
+            ("Поставь на паузу через пять минут", None),
         ] {
             assert_eq!(spoken_command(t), want, "{t}");
         }

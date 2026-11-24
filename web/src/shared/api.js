@@ -77,6 +77,15 @@ export const api = {
   audioUrl: (name, seconds) => `/api/sounds/${enc(name)}/audio${seconds ? `?seconds=${seconds}` : ''}`,
   timers: () => call('GET', '/api/timers'),
   cancelTimer: (id) => call('DELETE', `/api/timers/${id}`),
+  /** what is put off comes with the events (store.js: `later`: what the main page shows); one that waits is
+   * cancelled, one that is over is put out of the main page's sight — the record keeps both */
+  removeLater: (id) => call('DELETE', `/api/later/${id}`),
+  /** the record of it, all there ever was, by when each was due, the latest first: {items, more} */
+  laterHistory: ({ before, limit = 50 } = {}) => {
+    const q = new URLSearchParams({ limit: String(limit) })
+    if (before) q.set('before', String(before))
+    return call('GET', `/api/later/history?${q}`)
+  },
   alarms: () => call('GET', '/api/alarms'),
   addAlarm: (a) => call('POST', '/api/alarms', a),
   changeAlarm: (id, patch) => call('PATCH', `/api/alarms/${id}`, patch),

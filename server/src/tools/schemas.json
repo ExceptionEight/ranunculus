@@ -268,5 +268,60 @@
         ]
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "later",
+      "description": "Сделать позже, молча: через сколько-то или во сколько. Можно всё, что делают home_set, play_music, player_control и set_volume: tool — какой из них, args — его аргументы, как при обычном вызове. Срок — seconds (через сколько секунд) или at (во сколько, «ЧЧ:ММ» по 24 часам; ближайшее такое время, не дальше суток). Сейчас само действие не делай — только запланируй. Напоминание («напомни…») — не сюда, это set_timer: он звенит. Что уже отложено — в строке «отложено»; передумали — later_cancel.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "enum": [
+              "home_set",
+              "play_music",
+              "player_control",
+              "set_volume"
+            ]
+          },
+          "args": {
+            "type": "object",
+            "description": "аргументы этого инструмента"
+          },
+          "seconds": {
+            "type": "integer",
+            "description": "через сколько секунд"
+          },
+          "at": {
+            "type": "string",
+            "description": "во сколько: ЧЧ:ММ"
+          }
+        },
+        "required": [
+          "tool",
+          "args"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "later_cancel",
+      "description": "Отменить отложенное действие: id — его номер из строки «отложено».",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    }
   }
 ]

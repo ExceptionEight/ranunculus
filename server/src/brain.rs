@@ -152,7 +152,7 @@ pub fn brief(name: &str, res: &Value) -> Value {
     }
     let Value::Object(o) = res else { return json!({"ok": true}) };
     let mut out = Map::new();
-    for k in ["ok", "playing", "state", "track", "error", "rings_at", "level", "result", "value"] {
+    for k in ["ok", "playing", "state", "track", "error", "rings_at", "level", "result", "value", "when"] {
         if let Some(v) = o.get(k) {
             out.insert(k.into(), v.clone());
         }

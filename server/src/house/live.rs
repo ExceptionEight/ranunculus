@@ -279,3 +279,86 @@ async fn a_page_does_not_set_the_home_and_the_user_does() {
     assert!(t.guard("home_set").is_none());
     assert_eq!(t.run("home_set", &json!({"control": "cover.b#position", "value": "100"})).await["error"], NOT_SET);
 }
+
+#[tokio::test]
+async fn what_is_put_off_for_a_device() {
+    use crate::later::{self, Later, State};
+    use crate::tools::{Io, LaterHook, Tools};
+    let fake = Arc::new(Fake::default());
+    let (h, push) = connected(fake.clone()).await;
+    let kept = Later::in_memory();
+    let hook = LaterHook { later: kept.clone(), device: "d".into(), start: Arc::new(|_, _| {}) };
+    let mut t = Tools::new(Io { house: Some(h.clone()), later: Some(hook), ..Default::default() }, None);
+    let home = |control: &str, value: &str, seconds: u64| json!({"tool": "home_set", "args": {"control": control, "value": value}, "seconds": seconds});
+    // looked at and not done: whose it is and what it will do; what the control does not take is refused now
+    assert_eq!(
+        h.planned("climate.x#target", &json!("23"), true).unwrap(),
+        Planned {
+            device: "c".into(),
+            name: "Кондиционер".into(),
+            what: "Целевая температура".into(),
+            value: "23 °C".into()
+        }
+    );
+    assert_eq!(h.planned("climate.x#target", &json!(50), true).unwrap_err(), "вне диапазона: можно от 7 до 35 °C");
+    assert_eq!(h.planned("climate.nope#target", &json!(20), true).unwrap_err(), NO_CONTROL);
+    // one request, one device, one time: one thing of two steps — another device, or another time, is another
+    t.new_request("через час сделай кондиционеру 23 градуса и подними штору");
+    assert_eq!(
+        t.run("later", &home("climate.x#target", "23", 3600)).await,
+        json!({"ok": true, "id": 1, "when": "через 1 час"})
+    );
+    assert_eq!(t.run("later", &home("climate.x#mode", "heat", 3600)).await["id"], json!(1));
+    assert_eq!(t.run("later", &home("cover.blind#position", "50", 3600)).await["id"], json!(2));
+    assert_eq!(t.run("later", &home("climate.x#target", "25", 7200)).await["id"], json!(3));
+    assert_eq!(
+        t.run("later", &home("climate.x#target", "50", 60)).await["error"],
+        "вне диапазона: можно от 7 до 35 °C"
+    );
+    assert_eq!(
+        t.run("later", &home("climate.nope#target", "20", 60)).await["error"],
+        "нет такой ручки: возьми control из home_device"
+    );
+    let p = kept.pending("d");
+    assert_eq!(p.len(), 3);
+    assert_eq!(p[0].what(), "Кондиционер: Целевая температура: 23 °C, Режим: heat");
+    assert_eq!((p[0].target.as_str(), p[1].what().as_str()), ("c", "Штора: Открыто: 50 %"));
+    // the next request's calls are its own: not steps of what the one before put off
+    t.new_request("и ещё поставь кондиционеру 24 через час");
+    assert_eq!(t.run("later", &home("climate.x#target", "24", 3600)).await["id"], json!(4));
+    // run: the steps in order, as the tool sets them — what reads so already is not sent
+    let mut tools = Tools::new(Io { house: Some(h.clone()), ..Default::default() }, None);
+    let due = |id: u64| {
+        let mut e = kept.waiting(id).unwrap();
+        e.at = crate::text::now_s();
+        e
+    };
+    later::perform(&kept, &due(1), &mut tools).await;
+    let done = kept.get(1).unwrap();
+    assert_eq!((done.state, done.error.as_str()), (State::Done, ""));
+    let calls: Vec<Value> = fake.calls.lock().unwrap().iter().map(|c| c["service_data"].clone()).collect();
+    assert_eq!(calls, [json!({"temperature": 23.0})], "the mode is «heat» already");
+    // the device away when it is due: the step that fails is named, the rest is not tried
+    kept.push(
+        3,
+        later::Step {
+            tool: "home_set".into(),
+            args: json!({"control": "climate.x#mode", "value": "off"}),
+            what: "Режим".into(),
+            value: "Выключено".into(),
+        },
+    );
+    push.send(state("climate.x", "unavailable", serde_json::from_str(THERMOSTAT).unwrap())).await.unwrap();
+    for _ in 0..100 {
+        if h.json()["devices"].as_array().unwrap().iter().any(|d| d["id"] == "c" && d["online"] == json!(false)) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    later::perform(&kept, &due(3), &mut tools).await;
+    let failed = kept.get(3).unwrap();
+    assert_eq!((failed.state, failed.error.as_str()), (State::Failed, "устройство не в сети (Целевая температура)"));
+    assert_eq!(fake.calls.lock().unwrap().len(), 1, "nothing more was sent");
+    // …while what is put off for it meanwhile is taken: it is for later
+    assert!(t.run("later", &home("climate.x#target", "22", 3600)).await["ok"] == json!(true));
+}

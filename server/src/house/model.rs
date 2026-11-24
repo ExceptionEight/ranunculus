@@ -1174,6 +1174,23 @@ pub fn call(c: &Control, st: &Value, v: &Value) -> Result<(Call, Want), String> 
     }
 }
 
+/// What a control is set to, in words, for what is put off (later.rs: the request's stamp, the web UI): «Кипячение»,
+/// «выкл», «40 %»; None: an action, which is set to nothing.
+pub fn value_words(c: &Control, v: &Value) -> Option<String> {
+    match c.kind {
+        Kind::Bool => truth(v).map(|on| if on { "вкл" } else { "выкл" }.to_string()),
+        Kind::Number => num(v).map(|x| match &c.unit {
+            Some(u) => format!("{} {u}", number(x)),
+            None => number(x).to_string(),
+        }),
+        Kind::Choice => {
+            let asked = plain(&crate::tools::text_of(v));
+            c.options.iter().find(|o| plain(&o.value) == asked || plain(&o.label) == asked).map(|o| o.label.clone())
+        }
+        Kind::Reading | Kind::Action => None,
+    }
+}
+
 /// How many of a choice's options are said at once (a light's effects come by the hundred).
 pub const OPTIONS_SAID: usize = 24;
 
@@ -1498,6 +1515,13 @@ pub mod tests {
         let l = &h.devices[0];
         let p = control(l, "light.lamp#power");
         assert_eq!(call(p, &st(p), &json!(true)).unwrap_err(), "устройство не в сети");
+        // what a control is set to, in words: an option by its label, a number with its unit, a switch as «вкл» and
+        // «выкл»
+        let words = |id: &str, v: Value| value_words(control(k, id), &v);
+        assert_eq!(words("select.kettle_mode#option", json!("green")).as_deref(), Some("Зелёный чай"));
+        assert_eq!(words("water_heater.kettle#target", json!("70")).as_deref(), Some("70 °C"));
+        assert_eq!(words("switch.kettle_backlight#power", json!("false")).as_deref(), Some("выкл"));
+        assert_eq!(value_words(p, &json!(true)).as_deref(), Some("вкл"));
     }
 
     #[test]

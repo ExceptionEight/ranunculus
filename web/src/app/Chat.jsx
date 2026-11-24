@@ -7,7 +7,9 @@ import { Link } from 'react-router'
 import {
   ArrowDown,
   Calculator,
+  CalendarClock,
   CalendarDays,
+  CalendarX,
   ChevronLeft,
   CloudSun,
   Globe,
@@ -42,6 +44,8 @@ const TOOL_ICON = {
   date_calc: CalendarDays,
   home_device: Lightbulb,
   home_set: Lightbulb,
+  later: CalendarClock,
+  later_cancel: CalendarX,
 }
 
 /** «Сегодня», «Вчера», «Суббота, 7 ноября», with the year when it is not this one */

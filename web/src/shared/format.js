@@ -105,6 +105,12 @@ export function until(at, now = Date.now() / 1000) {
   return left < 1 ? 'сейчас' : `через ${span(left)}`
 }
 
+/** The same to the minute, while minutes are left: «через 12 мин», «через 1 ч 5 мин», «через 40 с» */
+export function untilAbout(at, now = Date.now() / 1000) {
+  const left = Math.max(0, at - now)
+  return left >= 90 ? `через ${minutes(left / 60)}` : until(at, now)
+}
+
 /** What a device is doing, in a word or two (never «тихо»: it read as the volume). */
 export function status(d) {
   if (!d?.online) return 'Не в сети'

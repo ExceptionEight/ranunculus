@@ -1,4 +1,4 @@
-/* Home: the stations, what plays, the home's devices (house.css), what is set to ring */
+/* Home: the stations, what plays, the home's devices (house.css), what is put off, what is set to ring */
 
 /* a part of the page: its heading over its cards */
 .stations-col {
@@ -107,7 +107,7 @@
   opacity: 0.8;
 }
 
-/* the agenda: timers going and alarms on */
+/* the agenda: timers going and alarms on; what is put off, waiting and over */
 .agenda {
   display: flex;
   flex-direction: column;
@@ -165,6 +165,27 @@
 
 .agenda-item .what .err {
   color: var(--bad);
+}
+
+/* what is put off says what it will do: all of it, however long */
+.agenda-item.put-off .what b {
+  overflow: visible;
+  white-space: normal;
+}
+
+/* for a device of the home: a line for each control it sets, under the device's name */
+.agenda-item.put-off .what .step {
+  color: var(--ink);
+}
+
+/* the record of it, by days: a day's first row needs no line over it */
+.agenda .list-day + .agenda-item {
+  border-top: 0;
+}
+
+.agenda-item.over .when {
+  color: var(--ink-2);
+  font-weight: 500;
 }
 
 .agenda-item .what a {

@@ -142,13 +142,7 @@ async fn sound_it(shared: Arc<Shared>, a: AlarmRow, at: f64, taken: Arc<Mutex<Ha
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn msk_t(s: &str) -> f64 {
-        tz().from_local_datetime(&chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M").unwrap())
-            .single()
-            .unwrap()
-            .timestamp() as f64
-    }
+    use crate::text::msk_t;
 
     #[test]
     fn when_it_rings() {

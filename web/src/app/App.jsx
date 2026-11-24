@@ -12,6 +12,7 @@ import Home from './Home.jsx'
 import Device from './Device.jsx'
 import Thing from './House.jsx'
 import Analytics from './Analytics.jsx'
+import Later from './Later.jsx'
 import Settings from './settings/Settings.jsx'
 import Login from './Login.jsx'
 
@@ -134,6 +135,7 @@ export default function App() {
             <Route path="/devices/:id/*" element={<Device />} />
             <Route path="/house/:id" element={<Thing />} />
             <Route path="/analytics/*" element={<Analytics />} />
+            <Route path="/automation" element={<Later />} />
             <Route path="/settings/*" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

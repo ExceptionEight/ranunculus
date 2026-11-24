@@ -49,6 +49,8 @@ const TRIES: usize = 3;
 /// restart of the service takes a few seconds and is ridden out: taken for broken tracks, it would burn the whole
 /// queue in seconds
 const DOWN_FOR: Duration = Duration::from_secs(if cfg!(test) { 2 } else { 10 });
+/// what a control answers when there is nothing to control (later.rs: a stop put off finds the music stopped)
+pub const NOTHING: &str = "сейчас ничего не играет";
 /// between tries while it is unreachable
 const DOWN_EVERY: Duration = Duration::from_millis(if cfg!(test) { 300 } else { 1000 });
 /// a station back within this after its link was lost: the music it was playing goes on
@@ -307,7 +309,7 @@ impl Music {
             if st.queue.is_empty()
                 || (st.state == State::Stop && matches!(action, "repeat" | "repeat_off" | "back" | "forward"))
             {
-                return json!({"ok": false, "error": "сейчас ничего не играет"});
+                return json!({"ok": false, "error": NOTHING});
             }
             st.state
         };
@@ -353,7 +355,7 @@ impl Music {
         let (state, at, duration) = {
             let st = self.st.lock().unwrap();
             if st.queue.is_empty() || st.state == State::Stop {
-                return json!({"ok": false, "error": "сейчас ничего не играет"});
+                return json!({"ok": false, "error": NOTHING});
             }
             (st.state, heard(&st), st.queue[st.pos.min(st.queue.len() - 1)].duration)
         };

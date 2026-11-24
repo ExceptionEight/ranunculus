@@ -43,7 +43,8 @@ impl Timer {
     }
 }
 
-fn span(s: u64) -> String {
+/// «10 мин», «1 ч 30 мин», «45 с»
+pub fn span(s: u64) -> String {
     let (h, m, sec) = (s / 3600, s % 3600 / 60, s % 60);
     let mut out = vec![];
     if h > 0 {

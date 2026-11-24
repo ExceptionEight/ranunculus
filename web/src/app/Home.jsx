@@ -1,9 +1,10 @@
 // Главная, top to bottom: what needs a hand now (a ring; no models chosen yet), the stations with their volume, what
-// plays, the home's devices by room (House.jsx), and what is set to ring (the timers going, the alarms on). Editing an
-// alarm is on its station's page.
+// plays, the home's devices by room (House.jsx), what is put off («выключи музыку через полчаса»: waiting, and how
+// what was due lately ended; all there ever was — Later.jsx), and what is set to ring (the timers going, the alarms
+// on). Editing an alarm is on its station's page.
 import { useMemo } from 'react'
 import { Link } from 'react-router'
-import { AlarmClock, ChevronRight, KeyRound, Music2, Speaker, X } from 'lucide-react'
+import { AlarmClock, CalendarClock, ChevronRight, KeyRound, Music2, Speaker, X } from 'lucide-react'
 import { api } from '../shared/api.js'
 import { useAction, useNow } from '../shared/hooks.js'
 import { deviceList, deviceName, useStore } from '../shared/store.js'
@@ -12,6 +13,7 @@ import { missing, nothingChosen } from '../shared/providers.js'
 import { devicePath, Empty, PageHead, PlayerCard, RingingCard, Switch, VolumeSlider } from './ui.jsx'
 import { Glyph } from './Flower.jsx'
 import { HouseRooms } from './House.jsx'
+import { LaterItem } from './Later.jsx'
 import { tz } from '../shared/zone.js'
 
 function today() {
@@ -87,6 +89,33 @@ function AlarmItem({ a, devices }) {
       </span>
       <Switch on={a.enabled} disabled={busy} onChange={(on) => toggle(on)} label={`Будильник на ${a.time}`} />
     </li>
+  )
+}
+
+function PutOff({ devices }) {
+  const later = useStore((s) => s.later)
+  return (
+    <section className="stations-col" aria-labelledby="later-h">
+      <div className="section-head">
+        <h2 id="later-h" className="section-title">
+          Автоматизация
+        </h2>
+        <Link to="/automation">Вся история</Link>
+      </div>
+      <div className="card">
+        {later.length > 0 ? (
+          <ul className="agenda">
+            {later.map((e) => (
+              <LaterItem key={e.id} e={e} devices={devices} main />
+            ))}
+          </ul>
+        ) : (
+          <Empty small icon={CalendarClock}>
+            Отложенных команд нет. Скажите колонке «выключи музыку через полчаса», и команда появится здесь
+          </Empty>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -181,6 +210,7 @@ export default function Home() {
         </div>
       )}
       <HouseRooms />
+      <PutOff devices={devices} />
       <Agenda devices={devices} list={list} />
     </main>
   )

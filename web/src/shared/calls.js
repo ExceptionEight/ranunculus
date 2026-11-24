@@ -52,6 +52,16 @@ function ok(res) {
   return !(res && typeof res === 'object' && res.ok === false)
 }
 
+/** The arguments of a call put off (a model now and then sends the object as its text). */
+function putOff(args) {
+  if (typeof args !== 'string') return args || {}
+  try {
+    return JSON.parse(args) || {}
+  } catch {
+    return {}
+  }
+}
+
 /** → {kind, label, direction, failed} */
 export function describe([name, args = {}, res]) {
   const a = args || {}
@@ -146,8 +156,25 @@ export function describe([name, args = {}, res]) {
       }
       const [device, c] = found
       const to = setTo(c, a.value)
-      label = `${device}: ${c.name}${to ? ` — ${to}` : ''}`
+      label = `${device}: ${c.name}${to ? ` – ${to}` : ''}`
       direction = `Меняет у устройства «${device}» ручку «${c.name}»${to ? `: ${to}` : ''}`
+      break
+    }
+    case 'later': {
+      // the call it puts off, in that call's own words, after when: «через 20 мин · музыка выключена»
+      // (a call that failed may name no tool, or one with nothing to say of it)
+      const inner = a.tool ? describe([a.tool, putOff(a.args)]) : null
+      const then = inner?.label ? inner : null
+      const s = span(Number(a.seconds) || 0)
+      label = `${a.at ? `в ${a.at}` : `через ${s}`}${then ? ` · ${then.label}` : ''}`
+      direction = `Откладывает ${a.at ? `до ${a.at}` : `на ${s}`}`
+      if (then) direction += `: ${then.direction[0].toLowerCase()}${then.direction.slice(1, -1)}`
+      break
+    }
+    case 'later_cancel': {
+      const n = a.id == null ? '' : ` №${a.id}`
+      label = `отмена${n}`
+      direction = `Отменяет отложенную команду${n}`
       break
     }
     default:

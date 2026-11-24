@@ -28,6 +28,8 @@ const TOOLS = {
   recall: 'Память',
   calculate: 'Вычисления',
   date_calc: 'Даты',
+  later: 'Отложенные команды',
+  later_cancel: 'Отмена отложенных команд',
 }
 
 /** What the music's numbers mean: beside the «?» in the corner while the music is shown. */
