@@ -145,6 +145,9 @@ fn role_fields(app: &App, v: &Value, r: &mut RoleRow) -> Result<ConnectionRow, F
     if r.role != "llm" && crate::claude::is_anthropic(&c.url) {
         return Err(bad("Подключение к Anthropic годится только для ответов"));
     }
+    if r.speed.is_some() && crate::google::is_google(&c.url) {
+        return Err(bad("У голосов Google скорость не настраивается: оставьте её пустой"));
+    }
     if (r.connection, r.model.as_str()) != (was.0, was.1.as_str()) {
         let ours = DEFAULTS.iter().find(|(role, model, ..)| *role == r.role && *model == r.model);
         if !o.contains_key("extra") {
@@ -302,7 +305,8 @@ fn reached(role: &str) -> (&'static str, &'static str) {
 
 /// POST /api/connections/{id}/models {"role"}: the service's models for the role. OpenRouter says the prices of the
 /// models that answer and of the embeddings ($ per million tokens), whether a model can call tools — the assistant
-/// needs that — and a voice model's voices; a server at home says the names only, and all of them.
+/// needs that — and a voice model's voices; a server at home says the names only, and all of them. Anthropic and
+/// Google say what each of their models takes in their own ways (claude.rs, google.rs).
 pub(super) async fn models(State(app): State<App>, Path(id): Path<i64>, h: HeaderMap, body: Bytes) -> R {
     let v = json_body(&h, &body)?;
     let role = v["role"].as_str().unwrap_or("");
@@ -340,6 +344,17 @@ pub(super) async fn models(State(app): State<App>, Path(id): Path<i64>, h: Heade
                 _ => break,
             }
         }
+        return ok(json!({"items": items, "cloud": true}));
+    }
+    if crate::google::is_google(&c.url) {
+        let base = crate::google::base(&c.url);
+        let list = crate::google::list(&http, &base, "models", &c.key).await.map_err(gone)?;
+        // the voices are a list of their own; one that did not come leaves the voice's name to be typed
+        let voices = match role {
+            "tts" => crate::google::list(&http, &base, "voices", &c.key).await.unwrap_or_default(),
+            _ => vec![],
+        };
+        let items = crate::google::models(&list, role, &crate::google::voices(&voices));
         return ok(json!({"items": items, "cloud": true}));
     }
     let mut req = http.get(format!("{}/models", c.url));

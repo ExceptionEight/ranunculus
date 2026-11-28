@@ -97,7 +97,7 @@ export const api = {
   changeConnection: (id, patch) => call('PATCH', `/api/connections/${id}`, patch),
   deleteConnection: (id) => call('DELETE', `/api/connections/${id}`),
   /** a connection's models for a role: {items: [{id, name, in?, out?, tools?, voices?, efforts?, off?}]} (efforts,
-   * off: Claude's — the levels of thinking it takes, how it is turned off) */
+   * off: Claude's and Gemini's — the levels of thinking it takes, how it is turned off) */
   models: (id, role) => call('POST', `/api/connections/${id}/models`, { role }),
   setRole: (role, r) => call('PUT', `/api/roles/${role}`, r),
   clearRole: (role) => call('DELETE', `/api/roles/${role}`),

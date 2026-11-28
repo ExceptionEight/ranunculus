@@ -1,5 +1,6 @@
 // Settings → Модели. The connections: a service's address and its key, given once (OpenRouter, a server at home,
-// Anthropic for Claude — it only answers, and says how much each of its models may think).
+// Anthropic for Claude — it only answers, and says how much each of its models may think; Google for Gemini — it
+// does every role, with voices of its own that have no speed).
 // The roles: who hears (recognition), answers (a language model), speaks (a voice) and finds past talks by meaning
 // (embeddings) — each one model of one of the connections, used by every station. Keys go in and never come back.
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -16,20 +17,26 @@ const SERVERS = [
   { label: 'Ollama на этом компьютере', name: 'Ollama', url: 'http://host.docker.internal:11434/v1' },
   { label: 'OpenAI', name: 'OpenAI', url: 'https://api.openai.com/v1', needsKey: true },
   { label: 'Anthropic (Claude)', name: 'Anthropic', url: 'https://api.anthropic.com/v1', needsKey: true },
+  { label: 'Google (Gemini)', name: 'Google', url: 'https://generativelanguage.googleapis.com/v1beta', needsKey: true },
   { label: 'Другой сервер с API, совместимым с OpenAI', name: '', url: '' },
 ]
 
-/** How much Claude thinks (claude.rs, EFFORTS): what the model takes of these, and off where it can be. */
+/** How much Claude or Gemini thinks (claude.rs, google.rs: EFFORTS): what the model takes of these, and off where it
+ * can be. */
 const EFFORT = { low: 'Низкий', medium: 'Средний', high: 'Высокий', xhigh: 'Очень высокий', max: 'Максимальный' }
 
-/** A Claude role's extra fields → how much it thinks: '' (as the model does), a level of EFFORT, or 'off'. */
+/** Does the connection's service say how much its models may think? */
+const thinks = (connection) => !!(connection?.anthropic || connection?.google)
+
+/** Such a role's extra fields → how much it thinks: '' (as the model does), a level of EFFORT, or 'off'. */
 function effortOf(extra) {
   if (['disabled', 'between_tools'].includes(extra?.thinking?.type)) return 'off'
-  return extra?.output_config?.effort || ''
+  return extra?.output_config?.effort || extra?.reasoning_effort || ''
 }
 
-/** …and back, as Claude takes them; `off`: how this model turns its thinking off. */
-function effortExtra(effort, off) {
+/** …and back, as Claude takes them (`off`: how this model turns its thinking off) or as Gemini does. */
+function effortExtra(effort, off, google) {
+  if (google) return effort ? { reasoning_effort: effort } : {}
   if (effort === 'off') return { thinking: { type: off || 'disabled' } }
   return effort ? { output_config: { effort } } : {}
 }
@@ -364,11 +371,14 @@ function RoleEditor({ role, chosen, connections: all, onClose }) {
   const connection = connections.find((c) => c.id === Number(f.connection))
   const model = list.find((m) => m.id === f.model)
   const voices = model?.voices || []
-  const claude = role === 'llm' && !!connection?.anthropic
+  const thinking = role === 'llm' && thinks(connection)
+  // Google's voices have no speed
+  const paced = !connection?.google
   const body = () => {
     const b = { connection: Number(f.connection), model: f.model.trim() }
-    if (role === 'tts') Object.assign(b, { voice: f.voice.trim(), speed: f.speed === '' ? null : Number(f.speed) })
-    if (claude) b.extra = effortExtra(f.effort, model?.off)
+    if (role === 'tts')
+      Object.assign(b, { voice: f.voice.trim(), speed: paced && f.speed !== '' ? Number(f.speed) : null })
+    if (thinking) b.extra = effortExtra(f.effort, model?.off, connection.google)
     return b
   }
   const pick = (m) =>
@@ -456,7 +466,7 @@ function RoleEditor({ role, chosen, connections: all, onClose }) {
           />
         )}
       </div>
-      {claude && (model?.efforts?.length > 0 || model?.off) && (
+      {thinking && (model?.efforts?.length > 0 || model?.off) && (
         <label className="field-wrap">
           <span>Уровень размышлений</span>
           <select className="field" value={f.effort} onChange={(e) => set('effort')(e.target.value)}>
@@ -493,19 +503,21 @@ function RoleEditor({ role, chosen, connections: all, onClose }) {
               />
             )}
           </label>
-          <label className="field-wrap">
-            <span>Скорость</span>
-            <input
-              className="field"
-              type="number"
-              min={0.5}
-              max={3}
-              step={0.05}
-              placeholder="Как у модели"
-              value={f.speed}
-              onChange={(e) => set('speed')(e.target.value)}
-            />
-          </label>
+          {paced && (
+            <label className="field-wrap">
+              <span>Скорость</span>
+              <input
+                className="field"
+                type="number"
+                min={0.5}
+                max={3}
+                step={0.05}
+                placeholder="Как у модели"
+                value={f.speed}
+                onChange={(e) => set('speed')(e.target.value)}
+              />
+            </label>
+          )}
         </div>
       )}
       {role === 'tts' && (listen.result || listen.error) && (
@@ -532,7 +544,7 @@ function Role({ role, chosen, connections, saved, onEdit }) {
     if (saved && role !== 'tts') check.run()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per save: `check` is new at every render
   }, [saved])
-  const effort = connection?.anthropic && effortOf(chosen?.extra)
+  const effort = thinks(connection) && effortOf(chosen?.extra)
   const details = chosen && [
     connection?.name,
     effort && (effort === 'off' ? 'без размышлений' : `уровень размышлений: ${EFFORT[effort].toLowerCase()}`),

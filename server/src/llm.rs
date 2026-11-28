@@ -1,7 +1,8 @@
 //! An OpenAI-compatible chat completion: streamed (the text as it comes, for sentence-by-sentence speech, and the
 //! tool calls at the end) or whole (the note-taker, the prompt warm-up). OpenRouter, Ollama, llama.cpp — anything
-//! with /v1/chat/completions; and Claude, by Anthropic's own API, translated both ways (claude.rs).
-use crate::claude;
+//! with /v1/chat/completions; and Claude, by Anthropic's own API, translated both ways (claude.rs). Google's
+//! OpenAI-compatible API is asked the same way, its differences put right in google.rs.
+use crate::{claude, google};
 use futures_util::StreamExt;
 use serde_json::{json, Map, Value};
 use std::sync::Arc;
@@ -17,6 +18,8 @@ pub struct Llm {
     cloud: bool,               // away from the house: providers::cloud (the tests make a model on 127.0.0.1 one)
     /// Claude by Anthropic's API (None: a chat completion), with what it thought before its calls
     claude: Option<Arc<claude::Replay>>,
+    /// Gemini by Google's API (a chat completion, as Google takes one), with what came beside its calls
+    google: Option<Arc<google::Signatures>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -77,12 +80,18 @@ fn event(
         on_text(t);
     }
     for tc in d["tool_calls"].as_array().into_iter().flatten() {
-        let i = tc["index"].as_u64().unwrap_or(0) as usize;
+        let id = tc["id"].as_str().filter(|s| !s.is_empty());
+        // a server that numbers no calls (Google) sends each whole: another id is another call
+        let i = match (tc["index"].as_u64(), calls.last(), id) {
+            (Some(i), ..) => i as usize,
+            (None, Some(last), Some(id)) if last.id != id => calls.len(),
+            _ => calls.len().saturating_sub(1),
+        };
         while calls.len() <= i {
             calls.push(Call::default());
         }
         let c = &mut calls[i];
-        if let Some(id) = tc["id"].as_str().filter(|s| !s.is_empty()) {
+        if let Some(id) = id {
             c.id = id.into();
         }
         if let Some(n) = tc["function"]["name"].as_str() {
@@ -116,12 +125,19 @@ impl Llm {
             extra,
             cloud: crate::providers::cloud(url),
             claude: None,
+            google: None,
         }
     }
 
     /// Claude: `base` is the API's root («https://api.anthropic.com/v1»).
     pub fn claude(base: &str, model: &str, key: &str, extra: Map<String, Value>) -> Llm {
         Llm { claude: Some(Default::default()), ..Llm::new(&format!("{base}/messages"), model, key, extra) }
+    }
+
+    /// Gemini: `base` is the API's root («https://generativelanguage.googleapis.com/v1beta»).
+    pub fn google(base: &str, model: &str, key: &str, extra: Map<String, Value>) -> Llm {
+        let url = format!("{base}/openai/chat/completions");
+        Llm { google: Some(Default::default()), ..Llm::new(&url, model, key, extra) }
     }
 
     /// A provider in the internet (https), not one at home.
@@ -143,15 +159,21 @@ impl Llm {
             let req = self.http.post(&self.url).header("anthropic-version", claude::VERSION).json(&b);
             return if self.key.is_empty() { req } else { req.header("x-api-key", &self.key) };
         }
-        let mut b = body.as_object().cloned().unwrap_or_default();
-        b.insert("model".into(), json!(self.model));
-        if stream {
-            b.insert("stream".into(), json!(true));
-        }
-        for (k, v) in &self.extra {
-            b.insert(k.clone(), v.clone());
-        }
-        let mut req = self.http.post(&self.url).json(&Value::Object(b));
+        let b = match &self.google {
+            Some(kept) => google::request(body, &self.model, &self.extra, kept, stream),
+            None => {
+                let mut b = body.as_object().cloned().unwrap_or_default();
+                b.insert("model".into(), json!(self.model));
+                if stream {
+                    b.insert("stream".into(), json!(true));
+                }
+                for (k, v) in &self.extra {
+                    b.insert(k.clone(), v.clone());
+                }
+                Value::Object(b)
+            }
+        };
+        let mut req = self.http.post(&self.url).json(&b);
         if !self.key.is_empty() {
             req = req.bearer_auth(&self.key);
         }
@@ -233,6 +255,9 @@ impl Llm {
                         .map_err(|e| LlmError::Other(format!("an error in the stream: {e}")))?,
                     None => event(&v, &mut content, &mut calls, &mut on_text)?,
                 }
+                if let Some(kept) = &self.google {
+                    kept.keep(&v["choices"][0]["delta"]["tool_calls"]);
+                }
             }
         }
         if let (Some(r), Some(replay)) = (reading, &self.claude) {
@@ -300,6 +325,53 @@ pub mod fake {
         pub fn seen(&self) -> Vec<Seen> {
             self.seen.lock().unwrap().clone()
         }
+    }
+
+    /// A service as a few lines: each request is kept (its body, its head in small letters), and answered by the next
+    /// of `answers` (status, body). → (its base, …/v1; what it was asked)
+    pub async fn scripted(answers: Vec<(u16, String)>) -> (String, Arc<Mutex<Vec<(Value, String)>>>) {
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}/v1", l.local_addr().unwrap());
+        let seen: Arc<Mutex<Vec<(Value, String)>>> = Default::default();
+        let (kept, answers) = (seen.clone(), Arc::new(Mutex::new(std::collections::VecDeque::from(answers))));
+        tokio::spawn(async move {
+            while let Ok((mut s, _)) = l.accept().await {
+                let (kept, answers) = (kept.clone(), answers.clone());
+                tokio::spawn(async move {
+                    let (mut buf, mut chunk) = (vec![], [0u8; 65536]);
+                    let (head, len) = loop {
+                        let n = s.read(&mut chunk).await.unwrap_or(0);
+                        if n == 0 {
+                            return;
+                        }
+                        buf.extend_from_slice(&chunk[..n]);
+                        if let Some(i) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                            let head = String::from_utf8_lossy(&buf[..i + 4]).to_ascii_lowercase();
+                            let len: usize = head
+                                .lines()
+                                .find_map(|l| l.strip_prefix("content-length:").map(|v| v.trim().parse().unwrap()))
+                                .unwrap_or(0);
+                            break (head, i + 4 + len);
+                        }
+                    };
+                    while buf.len() < len {
+                        let n = s.read(&mut chunk).await.unwrap_or(0);
+                        if n == 0 {
+                            return;
+                        }
+                        buf.extend_from_slice(&chunk[..n]);
+                    }
+                    let start = head.len();
+                    kept.lock().unwrap().push((serde_json::from_slice(&buf[start..len]).unwrap(), head));
+                    let (code, body) = answers.lock().unwrap().pop_front().unwrap();
+                    let stream = body.starts_with("event:") || body.starts_with("data:");
+                    let kind = if stream { "text/event-stream" } else { "application/json" };
+                    let r = format!("HTTP/1.1 {code} X\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                    let _ = s.write_all(r.as_bytes()).await;
+                });
+            }
+        });
+        (base, seen)
     }
 
     async fn serve(mut s: tokio::net::TcpStream, whole: u64, seen: Arc<Mutex<Vec<Seen>>>) {
@@ -449,5 +521,85 @@ mod tests {
         assert!(a.cloud() && !Llm::new("http://127.0.0.1:52521/v1/chat/completions", "m", "", Map::new()).cloud());
         assert!(!Llm::new("https://gpu.lan/v1/chat/completions", "m", "", Map::new()).cloud());
         assert!(Llm::new("http://my-vps.example.com:8000/v1/chat/completions", "m", "", Map::new()).cloud());
+    }
+
+    #[test]
+    fn calls_that_come_whole_and_unnumbered() {
+        // Google: no index, each call whole in a piece of its own or two in one, something of its own beside the first
+        let call = |id: &str, args: &str| {
+            json!({"id": id, "type": "function", "function": {"name": "home_set", "arguments": args},
+                                                  "extra_content": {"google": {"thought_signature": "sig"}}})
+        };
+        let delta =
+            |calls: Value| json!({"choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": calls}}]});
+        for lines in [
+            vec![delta(json!([call("call_1", "{\"a\":1}")])), delta(json!([call("call_2", "{\"a\":2}")]))],
+            vec![delta(json!([call("call_1", "{\"a\":1}"), call("call_2", "{\"a\":2}")]))],
+        ] {
+            let (_, calls, _) = events(&lines).unwrap();
+            let got: Vec<_> = calls.iter().map(|c| (c.id.as_str(), c.name.as_str(), c.arguments.as_str())).collect();
+            assert_eq!(got, [("call_1", "home_set", "{\"a\":1}"), ("call_2", "home_set", "{\"a\":2}")]);
+        }
+        // a server that numbers none and sends a call in pieces: one call still
+        let piece = |id: Value, name: Value, args: &str| json!({"choices": [{"delta": {"tool_calls": [{"id": id, "function": {"name": name, "arguments": args}}]}}]});
+        let (_, calls, _) = events(&[
+            piece(json!("c1"), json!("calc"), "{\"e\":"),
+            piece(json!(null), json!(null), "\"2+2\"}"),
+            piece(json!("c1"), json!(null), ""),
+        ])
+        .unwrap();
+        assert_eq!((calls.len(), calls[0].name.as_str(), calls[0].arguments.as_str()), (1, "calc", "{\"e\":\"2+2\"}"));
+    }
+
+    #[tokio::test]
+    async fn a_request_and_its_rounds_with_gemini() {
+        let sse =
+            |events: &[Value]| events.iter().map(|e| format!("data: {e}\n\n")).collect::<String>() + "data: [DONE]\n\n";
+        let call = json!({"id": "call_7", "type": "function", "function": {"name": "home_set", "arguments": "{\"on\":true}"},
+                          "extra_content": {"google": {"thought_signature": "sig"}}});
+        let (base, seen) = fake::scripted(vec![
+            (
+                200,
+                sse(&[
+                    json!({"choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]}}]}),
+                    json!({"choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": "stop"}]}),
+                ]),
+            ),
+            (200, sse(&[json!({"choices": [{"index": 0, "delta": {"role": "assistant", "content": "Включила."}}]})])),
+        ])
+        .await;
+        let extra = json!({"reasoning_effort": "low"}).as_object().cloned().unwrap();
+        let llm = Llm::google(&base, "gemini-3.8-flash", "key-test", extra);
+        let wait = Duration::from_secs(5);
+        let body = |m: &Vec<Value>| json!({"messages": m, "tools": [], "temperature": 0.3, "max_tokens": 1500, "chat_template_kwargs": {"enable_thinking": false}});
+        let mut msgs = vec![json!({"role": "user", "content": "включи свет"})];
+        let (text, calls) = llm.stream(&body(&msgs), wait, |_| {}, || false).await.unwrap();
+        assert_eq!((text.as_str(), calls.len(), calls[0].id.as_str()), ("", 1, "call_7"));
+        // the round goes on as with any model: the call as the server keeps it, without what came beside it
+        assert_eq!(calls[0].to_json().get("extra_content"), None);
+        msgs.push(json!({"role": "assistant", "content": null, "tool_calls": [calls[0].to_json()]}));
+        msgs.push(json!({"role": "tool", "tool_call_id": calls[0].id, "content": "{\"ok\":true}"}));
+        let (text, _) = llm.stream(&body(&msgs), wait, |_| {}, || false).await.unwrap();
+        assert_eq!(text, "Включила.");
+        let seen = seen.lock().unwrap();
+        let (first, head) = &seen[0];
+        assert!(
+            head.starts_with("post /v1/openai/chat/completions ") && head.contains("authorization: bearer key-test")
+        );
+        assert_eq!(
+            (
+                first["model"].as_str(),
+                first["reasoning_effort"].as_str(),
+                first["max_tokens"].as_u64(),
+                first["stream"].as_bool()
+            ),
+            (Some("gemini-3.8-flash"), Some("low"), Some(16_000), Some(true))
+        );
+        assert!(first.get("temperature").is_none() && first.get("chat_template_kwargs").is_none());
+        // …and Google gets it back beside the call in the next round
+        assert_eq!(
+            seen[1].0["messages"][1]["tool_calls"][0]["extra_content"],
+            json!({"google": {"thought_signature": "sig"}})
+        );
     }
 }

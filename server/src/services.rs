@@ -1,7 +1,7 @@
 //! Clients of what a connection does besides answering: speech recognition (the OpenAI transcription API), the voice
 //! (the OpenAI speech API) and the vectors of the memory (the OpenAI embeddings API). OpenRouter speaks all three under
-//! one key, and so may a server at home. Which model of which connection does what is the user's choice in the web UI
-//! (providers.rs).
+//! one key, and so may a server at home. Google gives the voice and the recognition by an API of its own
+//! (google.rs). Which model of which connection does what is the user's choice in the web UI (providers.rs).
 use serde_json::{json, Map, Value};
 use std::time::Duration;
 
@@ -14,11 +14,14 @@ pub struct Endpoint {
     pub key: String,
     pub voice: String,
     pub extra: Map<String, Value>,
+    /// Google's API (google.rs): the url is its root, …/v1beta — its OpenAI-compatible API is under …/openai
+    pub google: bool,
 }
 
 impl Endpoint {
     fn post(&self, http: &reqwest::Client, path: &str, wait: Duration) -> reqwest::RequestBuilder {
-        let req = http.post(format!("{}{path}", self.url)).timeout(wait);
+        let api = if self.google { "/openai" } else { "" };
+        let req = http.post(format!("{}{api}{path}", self.url)).timeout(wait);
         if self.key.is_empty() {
             req
         } else {
@@ -58,7 +61,7 @@ fn client() -> reqwest::Client {
 /// A request sent, and once more if it did not get through: a connection kept from the last request may have been
 /// closed by the service meanwhile, and a recording is not sent a second time by the HTTP client itself. Not after
 /// a timeout: that wait was long enough.
-async fn sent(what: &str, make: impl Fn() -> reqwest::RequestBuilder) -> Result<reqwest::Response, String> {
+pub(crate) async fn sent(what: &str, make: impl Fn() -> reqwest::RequestBuilder) -> Result<reqwest::Response, String> {
     match make().send().await {
         Err(e) if !e.is_timeout() => {
             crate::session::log("server", format!("   ({what}: {}: asked once more)", crate::why(&e)));
@@ -235,6 +238,10 @@ impl Services {
     /// A WAV file → the text.
     pub async fn transcribe_wav(&self, wav: Vec<u8>) -> Result<String, String> {
         let e = self.asr.as_ref().ok_or("asr: no recognition is chosen in the web UI")?;
+        if e.google {
+            let text = crate::google::transcribe(&self.http, e, &wav).await.map_err(|e| format!("asr: {e}"))?;
+            return Ok(said(&text));
+        }
         let form = || {
             let file = reqwest::multipart::Part::bytes(wav.clone()).file_name("command.wav").mime_str("audio/wav");
             let mut form = reqwest::multipart::Form::new().part("file", file.unwrap()).text("language", "ru");
@@ -260,6 +267,13 @@ impl Services {
     pub async fn speak(&self, text: &str) -> Result<Speech, TtsError> {
         let err = |code, msg: String| TtsError { code, msg };
         let e = self.tts.as_ref().ok_or_else(|| err(None, "no voice is chosen in the web UI".into()))?;
+        if e.google {
+            let (pcm, rate) = crate::google::speak(&self.http, e, text).await.map_err(|(code, msg)| err(code, msg))?;
+            if pcm.len() < 2 {
+                return Err(err(None, "the voice answered with no sound".into()));
+            }
+            return Ok(Speech { pcm: crate::loudness::level(&pcm, rate), rate });
+        }
         let mut body = json!({"input": text, "response_format": "pcm"});
         if !e.model.is_empty() {
             body["model"] = json!(e.model);
@@ -379,7 +393,8 @@ pub fn beep(rate: u32) -> Vec<u8> {
     y.iter().flat_map(|v| ((v * 0.25 * 32767.0) as i16).to_le_bytes()).collect()
 }
 
-/// A service on 127.0.0.1 with the three APIs, as OpenRouter answers them; what it was asked is kept.
+/// A service on 127.0.0.1 with the three APIs, as OpenRouter answers them, and the voice and the recognition as
+/// Google answers them; what it was asked is kept.
 #[cfg(test)]
 pub mod fake {
     use serde_json::{json, Value};
@@ -462,7 +477,8 @@ pub mod fake {
         let path = head.split_whitespace().nth(1).unwrap_or("").to_string();
         let raw = &buf[head_end..head_end + len];
         let body = serde_json::from_slice(raw).unwrap_or_else(|_| json!(String::from_utf8_lossy(raw)));
-        let key = field("authorization").unwrap_or_default().trim_start_matches("Bearer ").to_string();
+        let key = field("authorization").or(field("x-goog-api-key")).unwrap_or_default();
+        let key = key.trim_start_matches("Bearer ").to_string();
         // a model named «flaky»: the first request for it is dropped unanswered, as over a connection the service
         // closed while it was kept
         let flaky = String::from_utf8_lossy(raw).contains("flaky");
@@ -483,6 +499,20 @@ pub mod fake {
                 "application/json",
                 json!({"text": format!("<|speaker:0|> [шум] {HEARD}")}).to_string().into_bytes(),
             )
+        } else if path.contains(":streamGenerateContent") {
+            // Google's voice: the sound in two pieces (four samples), then an empty word
+            let piece = |b64: &str| json!({"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "audio/l16; rate=16000; channels=1", "data": b64}}]}}]});
+            let end = json!({"candidates": [{"content": {"parts": [{"text": ""}]}, "finishReason": "STOP"}]});
+            let out = if body.to_string().contains("nobody") {
+                return answer(&mut s, "400 Bad Request", "application/json", br#"{"error":{"code":400,"message":"No matching speaker voice found for name: nobody","status":"INVALID_ARGUMENT"}}"#).await;
+            } else {
+                format!("data: {}\n\ndata: {}\n\ndata: {end}\n\n", piece("ZABkAGQA"), piece("ZAA="))
+            };
+            ("200 OK", "text/event-stream", out.into_bytes())
+        } else if path.ends_with("/interactions") {
+            let step = json!({"type": "model_output", "content": [{"type": "text", "text": format!("[шум] {HEARD}")}]});
+            let out = json!({"status": "completed", "object": "interaction", "steps": [step]});
+            ("200 OK", "application/json", out.to_string().into_bytes())
         } else if path.ends_with("/embeddings") {
             // out of order and not of length one: both are the client's to put right
             let n = body["input"].as_array().map(|a| a.len()).unwrap_or(0);
@@ -494,12 +524,16 @@ pub mod fake {
         } else {
             ("404 Not Found", "application/json", b"{}".to_vec())
         };
+        answer(&mut s, status, ctype, &out).await;
+    }
+
+    async fn answer(s: &mut tokio::net::TcpStream, status: &str, ctype: &str, out: &[u8]) {
         let head = format!(
             "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
             out.len()
         );
         let _ = s.write_all(head.as_bytes()).await;
-        let _ = s.write_all(&out).await;
+        let _ = s.write_all(out).await;
     }
 }
 
@@ -508,7 +542,13 @@ mod tests {
     use super::*;
 
     fn at(url: &str, model: &str, voice: &str) -> Endpoint {
-        Endpoint { url: url.into(), model: model.into(), key: "sk-test".into(), voice: voice.into(), extra: Map::new() }
+        Endpoint {
+            url: url.into(),
+            model: model.into(),
+            key: "sk-test".into(),
+            voice: voice.into(),
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -584,5 +624,46 @@ mod tests {
         let flaky = Services::new(Some(at(&f.url, "a/flaky", "")), None, None);
         assert_eq!(flaky.transcribe(&[0.01; 1600]).await.unwrap(), fake::HEARD);
         assert_eq!(f.asked().iter().filter(|a| a.body.to_string().contains("a/flaky")).count(), 2);
+    }
+
+    #[tokio::test]
+    async fn the_voice_the_recognition_and_the_vectors_as_google_gives_them() {
+        let f = fake::Service::start().await;
+        let at = |model: &str, voice: &str| Endpoint { google: true, ..at(&f.url, model, voice) };
+        let s =
+            Services::new(Some(at("gemini-3.5-transcribe", "")), Some(at("models/gemini-3.8-flash-tts", "kore")), None);
+        // heard: the recording goes as it is, to be kept nowhere, with the language named
+        assert_eq!(s.transcribe(&[0.01; 1600]).await.unwrap(), fake::HEARD);
+        // said: the stream's pieces are one sound, at the rate they name
+        let sp = s.speak("Раз.").await.unwrap();
+        assert_eq!((sp.rate, sp.pcm.len()), (16000, 8));
+        let e =
+            Services::new(None, Some(at("gemini-3.8-flash-tts", "nobody")), None).speak("Два.").await.err().unwrap();
+        assert_eq!((e.code, e.msg.as_str()), (Some(400), "HTTP 400: No matching speaker voice found for name: nobody"));
+        // vectors: by its OpenAI-compatible API
+        let mut memory = at("gemini-embedding-2", "");
+        memory.extra.insert("dimensions".into(), json!(2));
+        assert_eq!(embed(&memory, &["один".into()]).await.unwrap().len(), 1);
+        let asked = f.asked();
+        assert!(asked.iter().all(|a| a.key == "sk-test"), "the key, by Google's header or as a bearer");
+        let of = |path: &str| asked.iter().find(|a| a.path.ends_with(path)).map(|a| a.body.clone()).unwrap();
+        let heard = of("/v1/interactions");
+        assert_eq!(
+            (heard["model"].as_str(), heard["store"].as_bool(), &heard["generation_config"]),
+            (
+                Some("gemini-3.5-transcribe"),
+                Some(false),
+                &json!({"transcription_config": {"language_codes": ["ru-RU"]}})
+            )
+        );
+        let recording = &heard["input"][0];
+        assert_eq!((recording["type"].as_str(), recording["mime_type"].as_str()), (Some("audio"), Some("audio/wav")));
+        assert!(recording["data"].as_str().unwrap().starts_with("UklGR"), "a WAV file in base64");
+        assert_eq!(
+            of("/v1/models/gemini-3.8-flash-tts:streamGenerateContent?alt=sse"),
+            json!({"contents": [{"role": "user", "parts": [{"text": "Раз."}]}],
+                   "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"voice": "kore"}}}})
+        );
+        assert_eq!(of("/v1/openai/embeddings")["model"], "gemini-embedding-2");
     }
 }

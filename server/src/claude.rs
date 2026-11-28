@@ -534,52 +534,6 @@ mod tests {
         assert_eq!((m[0]["name"].as_str(), m[0]["tools"].as_bool()), (Some("Claude Haiku 5.5"), Some(true)));
     }
 
-    /// Anthropic's API as a few lines: each request is kept, and answered by the next of `answers` (status, body).
-    async fn anthropic(answers: Vec<(u16, String)>) -> (String, std::sync::Arc<Mutex<Vec<(Value, String)>>>) {
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let base = format!("http://{}/v1", l.local_addr().unwrap());
-        let seen: std::sync::Arc<Mutex<Vec<(Value, String)>>> = Default::default();
-        let (kept, answers) = (seen.clone(), std::sync::Arc::new(Mutex::new(VecDeque::from(answers))));
-        tokio::spawn(async move {
-            while let Ok((mut s, _)) = l.accept().await {
-                let (kept, answers) = (kept.clone(), answers.clone());
-                tokio::spawn(async move {
-                    let (mut buf, mut chunk) = (vec![], [0u8; 65536]);
-                    let (head, len) = loop {
-                        let n = s.read(&mut chunk).await.unwrap_or(0);
-                        if n == 0 {
-                            return;
-                        }
-                        buf.extend_from_slice(&chunk[..n]);
-                        if let Some(i) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
-                            let head = String::from_utf8_lossy(&buf[..i + 4]).to_ascii_lowercase();
-                            let len: usize = head
-                                .lines()
-                                .find_map(|l| l.strip_prefix("content-length:").map(|v| v.trim().parse().unwrap()))
-                                .unwrap_or(0);
-                            break (head, i + 4 + len);
-                        }
-                    };
-                    while buf.len() < len {
-                        let n = s.read(&mut chunk).await.unwrap_or(0);
-                        if n == 0 {
-                            return;
-                        }
-                        buf.extend_from_slice(&chunk[..n]);
-                    }
-                    let start = head.len();
-                    kept.lock().unwrap().push((serde_json::from_slice(&buf[start..len]).unwrap(), head));
-                    let (code, body) = answers.lock().unwrap().pop_front().unwrap();
-                    let kind = if body.starts_with("event:") { "text/event-stream" } else { "application/json" };
-                    let r = format!("HTTP/1.1 {code} X\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
-                    let _ = s.write_all(r.as_bytes()).await;
-                });
-            }
-        });
-        (base, seen)
-    }
-
     fn sse(events: &[Value]) -> String {
         events.iter().map(|e| format!("event: {}\ndata: {e}\n\n", e["type"].as_str().unwrap())).collect()
     }
@@ -598,7 +552,7 @@ mod tests {
     async fn a_request_and_its_rounds_with_claude() {
         let refused = json!({"type": "error", "error": {"type": "invalid_request_error",
                              "message": "messages.1.content.0: Invalid `signature` in `thinking` block."}});
-        let (base, seen) = anthropic(vec![
+        let (base, seen) = crate::llm::fake::scripted(vec![
             (200, sse(&events())),
             (400, refused.to_string()),
             (200, sse(&said("Включила."))),

@@ -4,7 +4,8 @@
 //! (the keys never leave the server). Every station uses the same ones; a change counts from the next request:
 //! nothing is restarted.
 //! A connection to Anthropic's API (Claude) answers in its own way (claude.rs) and only answers: it has no recognition,
-//! voice or vectors.
+//! voice or vectors. A connection to Google's API (Gemini) does every role, the voice and the recognition by an API
+//! of Google's own (google.rs).
 //! The first start makes one connection, OpenRouter, without a key. Once the key is given and nothing is chosen yet,
 //! every role gets its model of DEFAULTS: the installation works at once, and each is the user's to change. Never
 //! again after that: a role given up (the memory) stays given up, and a home installation that adds OpenRouter for one
@@ -96,12 +97,14 @@ pub fn at_home(url: &str) -> bool {
 }
 
 pub fn endpoint(c: &ConnectionRow, r: &RoleRow) -> Endpoint {
+    let google = crate::google::is_google(&c.url);
     Endpoint {
-        url: c.url.trim_end_matches('/').to_string(),
+        url: if google { crate::google::base(&c.url) } else { c.url.trim_end_matches('/').to_string() },
         model: r.model.clone(),
         key: c.key.clone(),
         voice: r.voice.clone(),
         extra: r.extra.as_object().cloned().unwrap_or_default(),
+        google,
     }
 }
 
@@ -109,6 +112,14 @@ pub fn llm_of(c: &ConnectionRow, r: &RoleRow) -> Llm {
     if crate::claude::is_anthropic(&c.url) {
         return Llm::claude(
             &crate::claude::base(&c.url),
+            &r.model,
+            &c.key,
+            r.extra.as_object().cloned().unwrap_or_default(),
+        );
+    }
+    if crate::google::is_google(&c.url) {
+        return Llm::google(
+            &crate::google::base(&c.url),
             &r.model,
             &c.key,
             r.extra.as_object().cloned().unwrap_or_default(),
@@ -125,7 +136,8 @@ pub fn llm_of(c: &ConnectionRow, r: &RoleRow) -> Llm {
 /// A connection as the API shows it: the key only as «set, ends with …».
 pub fn public(c: &ConnectionRow) -> Value {
     json!({"id": c.id, "name": c.name, "url": c.url, "key_set": !c.key.is_empty(), "key_tail": tail(&c.key),
-           "cloud": cloud(&c.url), "openrouter": is_openrouter(&c.url), "anthropic": crate::claude::is_anthropic(&c.url)})
+           "cloud": cloud(&c.url), "openrouter": is_openrouter(&c.url), "anthropic": crate::claude::is_anthropic(&c.url),
+           "google": crate::google::is_google(&c.url)})
 }
 
 /// A key's (a token's) last four characters, to tell which one is kept; of a short one, nothing.

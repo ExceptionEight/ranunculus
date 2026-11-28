@@ -291,6 +291,43 @@ async fn claude_answers_and_does_nothing_else() {
 }
 
 #[tokio::test]
+async fn google_does_every_role_by_one_key() {
+    let (app, d) = test_app("google");
+    let ps = app.shared.providers.clone();
+    let add = |v: Value| add_connection(State(app.clone()), json_h(), Bytes::from(v.to_string()));
+    let put = |role: &str, v: Value| {
+        set_role(State(app.clone()), Path(role.to_string()), json_h(), Bytes::from(v.to_string()))
+    };
+    // the address as Google's own pages give it for OpenAI's libraries: the API's root is found from it
+    let url = "https://generativelanguage.googleapis.com/v1beta/openai/";
+    let c = body(add(json!({"name": "Google", "url": url, "key": "test-key-wxyz"})).await).await;
+    assert_eq!(
+        (c["google"].as_bool(), c["anthropic"].as_bool(), c["cloud"].as_bool()),
+        (Some(true), Some(false), Some(true))
+    );
+    let id = c["id"].as_i64().unwrap();
+    for (role, model) in [
+        ("asr", "gemini-3.5-transcribe"),
+        ("llm", "gemini-3.8-flash"),
+        ("tts", "gemini-3.8-flash-tts"),
+        ("embeddings", "gemini-embedding-2"),
+    ] {
+        assert_eq!(status(put(role, json!({"connection": id, "model": model})).await), 200, "{role}");
+    }
+    let root = "https://generativelanguage.googleapis.com/v1beta";
+    assert_eq!(ps.llm().unwrap().url, format!("{root}/openai/chat/completions"));
+    let s = ps.services();
+    let (asr, tts) = (s.asr.unwrap(), s.tts.unwrap());
+    assert_eq!((asr.url.as_str(), asr.google, tts.url.as_str(), tts.google), (root, true, root, true));
+    // its voices have no speed: one asked for is refused, not left unheard
+    let fast = json!({"connection": id, "model": "gemini-3.8-flash-tts", "voice": "kore", "speed": 1.2});
+    assert_eq!(status(put("tts", fast).await), 400);
+    assert_eq!(status(put("tts", json!({"voice": "kore", "speed": null})).await), 200);
+    assert_eq!(ps.services().tts.unwrap().voice, "kore");
+    std::fs::remove_dir_all(d).ok();
+}
+
+#[tokio::test]
 async fn a_listener_behind_is_said_hello_again() {
     let (tx, rx) = broadcast::channel(4);
     let n = Arc::new(std::sync::atomic::AtomicUsize::new(0));

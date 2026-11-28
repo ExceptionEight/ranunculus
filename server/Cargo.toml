@@ -19,6 +19,7 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = ["h
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 rustls-platform-verifier = "0.7" # already under reqwest: Home Assistant over https is checked as the system checks (house/ha.rs)
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+base64 = "0.22" # already under openidconnect: Google gives its voices and takes recordings in it (google.rs)
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "json", "query", "stream", "multipart"] } # rustls on ring: main.rs installs it
 toml = { version = "1", default-features = false, features = ["std", "serde", "parse"] }
 regex = "1"
